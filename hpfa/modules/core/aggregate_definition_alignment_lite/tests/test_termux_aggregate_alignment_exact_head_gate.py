@@ -6,7 +6,10 @@ BOOTSTRAP = ROOT / "tools" / "bootstrap_termux_aggregate_definition_alignment_v1
 
 
 def test_phone_runner_is_repository_executable():
-    assert (RUNNER.stat().st_mode & 0o111) == 0o111
+    # Termux commonly materializes Git 100755 as owner-only 0700. Product portability
+    # requires the current user to be able to execute the runner; group/other execute
+    # bits are not part of the football/runtime contract.
+    assert (RUNNER.stat().st_mode & 0o100) == 0o100
 
 
 def test_phone_runner_is_one_zip_no_pytest_single_pass():

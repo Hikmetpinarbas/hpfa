@@ -19,8 +19,7 @@ FINGERPRINT_FIELDS = (
     "definition_evidence_status", "claim_ceiling",
 )
 OPERATIONAL_SEMANTIC_FIELDS = (
-    "metric_family", "event_only_compatible", "comparison_allowed",
-    "metric_value_output_allowed", "upstream_bindings",
+    "metric_family", "comparison_allowed", "metric_value_output_allowed", "upstream_bindings",
 )
 DERIVATION_SEMANTIC_FIELDS = (
     "provider_id", "provider_version", "metric_id", "formula",
@@ -70,14 +69,13 @@ EXPECTED_DENOMINATOR_POLICY_FINGERPRINTS = {
     "provider_bound_rate_v1": "44b23a6dbf3b11e70c0f5ccf04f0e965f9ee944d07532ec19590867871bd4426",
 }
 DOMAIN_OPERATIONAL_FIELDS = (
-    "metric_family", "event_only_compatible", "comparison_allowed",
-    "metric_value_output_allowed", "upstream_bindings",
+    "metric_family", "comparison_allowed", "metric_value_output_allowed", "upstream_bindings",
 )
 EXPECTED_DOMAIN_OPERATIONAL_FINGERPRINTS = {
-    "progressive_open_pass": "45ad4d8b97a3c9131bae2f75c0d061b8f944bcce59a0a33c8ded4e204e309999",
-    "final_third_boundary_entry": "693bd04992c5d3ef6c5fd7790a188710ab5b80ee74e481c7c93890516f5a0ccc",
-    "final_third_access_established": "693bd04992c5d3ef6c5fd7790a188710ab5b80ee74e481c7c93890516f5a0ccc",
-    "chances": "346f8763fd76632578958ec59ef23675b5ded39d90e5ffe593d602a52ae8f199",
+    "progressive_open_pass": "cdfdb1219e215801ec35ee2f273dc914d39943873315b435c7f01d978eb8f555",
+    "final_third_boundary_entry": "970ecfbc142b1aaf0701d08bc75804d299b58eb414bd384ebf0b4507ac7f8f29",
+    "final_third_access_established": "970ecfbc142b1aaf0701d08bc75804d299b58eb414bd384ebf0b4507ac7f8f29",
+    "chances": "01c842a89e83710183f947e93062e6d47705a994382d4d5eff97f333254292f6",
 }
 UPSTREAM_SHARED_SEMANTICS = (
     ("construct", "construct_target"),
@@ -88,7 +86,6 @@ UPSTREAM_SHARED_SEMANTICS = (
     ("success_outcome_rule", "success_criteria"),
     ("temporal_window", "observation_window"),
     ("claim_ceiling", "claim_ceiling"),
-    ("event_only_compatible", "event_only_compatible"),
     ("comparison_allowed", "comparison_allowed"),
 )
 _FORMULA_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -247,14 +244,12 @@ def build_dictionary_report(
         for field in sorted(field for field in FINGERPRINT_FIELDS if row.get(field) in (None, "")):
             hard.append(_gap("metric_fingerprint_field_missing", f"{metric_id or 'UNKNOWN'}:{field}"))
         for field in (
-            "raw_labels", "metric_family", "event_only_compatible", "provider_binding_admitted",
+            "raw_labels", "metric_family", "provider_binding_admitted",
             "domain_contract_admitted", "comparison_allowed", "metric_value_output_allowed",
         ):
             if field not in row:
                 hard.append(_gap("metric_field_missing", f"{metric_id or 'UNKNOWN'}:{field}"))
 
-        if row.get("event_only_compatible") is not True:
-            hard.append(_gap("event_only_compatibility_required", metric_id or "UNKNOWN"))
         if not isinstance(row.get("metric_family"), str) or not row.get("metric_family"):
             hard.append(_gap("metric_family_missing_or_invalid", metric_id or "UNKNOWN"))
         if row.get("comparison_allowed") is not False:

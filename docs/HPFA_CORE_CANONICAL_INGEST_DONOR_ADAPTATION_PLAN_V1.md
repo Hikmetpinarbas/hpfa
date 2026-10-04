@@ -4,6 +4,8 @@ Project: HPFA Productization Program
 Node: hpfa_core_canonical_ingest_donor_adaptation_plan_v1
 Status: PLAN_ONLY_NO_IMPLEMENTATION
 
+ZFGV migration note (2026-09-15): `AUTHORITY_STATUS=HISTORICAL_ONLY`. This plan is preserved for lineage and is not product-wide admission authority. Any future implementation must follow current construct-specific ZFGV admission; non-event observation families cannot be rejected only because canonical event fields are absent.
+
 Purpose: plan how donor sources will support a future HPFA canonical ingest layer.
 
 Football product meaning: this layer is the match-data registration desk. It checks identity, clock, team, player and event structure before analyst modules use the data.

@@ -8,9 +8,24 @@ import action_occurrence_admission_current_v1 as current_occurrence
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src import (
     trackable_action_trace_candidates as trackable,
 )
+from hpfa.modules.core.trackable_action_trace_candidates_lite.src.observed_actor_acquisition_release_interval_projection import (
+    CLAIM_CEILING as INTERVAL_CLAIM_CEILING,
+    build_observed_actor_acquisition_release_interval_projection,
+)
+from hpfa.modules.core.trackable_action_trace_candidates_lite.src.occurrence_topology_adapter import (
+    apply_occurrence_topology_binding,
+)
 from hpfa.modules.core.trackable_action_trace_candidates_lite.src.occurrence_trace_binding import (
     build_occurrence_aware_trace_payload,
 )
+from hpfa.modules.core.trackable_action_trace_candidates_lite.src.provider_time_runtime_context_adapter import (
+    build_provider_time_runtime_context,
+)
+from hpfa.modules.core.trackable_action_trace_candidates_lite.src.temporal_relation_admission_adapter import (
+    bind_temporal_relation_admission,
+)
+
+INTERVAL_OUTPUT_JSON = "observed_actor_acquisition_release_interval_projection_v1.json"
 
 
 def _load(path: Path) -> dict:
@@ -19,6 +34,55 @@ def _load(path: Path) -> dict:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _write_interval_projection(payload: dict, output: Path) -> dict:
+    if payload.get("status") == "FAIL_CLOSED":
+        projection = {
+            "status": "FAIL_CLOSED",
+            "observed_actor_acquisition_release_interval_candidates": [],
+            "observed_actor_acquisition_release_interval_candidate_count": 0,
+            "eligible_acquisition_trace_count": 0,
+            "hard_block_hits": ["upstream_trace_runtime_fail_closed"],
+            "review_hits": [],
+            "projection_creates_new_evidence": False,
+            "projection_reconstructs_sequences": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+            "claim_ceiling": INTERVAL_CLAIM_CEILING,
+        }
+    else:
+        projection = build_observed_actor_acquisition_release_interval_projection(payload)
+
+    path = output / INTERVAL_OUTPUT_JSON
+    path.write_text(
+        json.dumps(projection, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    payload["current_actor_acquisition_release_interval_projection_bound"] = True
+    payload["current_actor_acquisition_release_interval_status"] = projection.get("status")
+    payload["current_actor_acquisition_release_interval_candidate_count"] = projection.get(
+        "observed_actor_acquisition_release_interval_candidate_count", 0
+    )
+    payload["current_actor_acquisition_release_interval_claim_ceiling"] = projection.get(
+        "claim_ceiling"
+    )
+    payload["current_actor_acquisition_release_interval_output"] = str(path)
+    payload["current_actor_acquisition_release_interval_projection_creates_new_evidence"] = (
+        projection.get("projection_creates_new_evidence") is True
+    )
+    payload["current_actor_acquisition_release_interval_projection_reconstructs_sequences"] = (
+        projection.get("projection_reconstructs_sequences") is True
+    )
+    if projection.get("status") == "FAIL_CLOSED":
+        review_hits = list(payload.get("review_hits") or [])
+        review_hits.append("actor_acquisition_release_interval_projection_fail_closed")
+        payload["review_hits"] = sorted(set(review_hits))
+        if payload.get("status") == "PASS":
+            payload["status"] = "REVIEW_REQUIRED"
+            payload["module_status"] = "REVIEW_REQUIRED"
+    return projection
 
 
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
@@ -64,8 +128,18 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "occurrence_trace_binding_record_count": 0,
             "occurrence_bound_trace_candidate_count": 0,
             "occurrence_both_participants_trace_visible_count": 0,
+            "occurrence_single_actor_trace_visible_count": 0,
             "occurrence_partial_participant_trace_visible_count": 0,
             "occurrence_no_participant_trace_visible_count": 0,
+            "occurrence_unresolved_topology_count": 0,
+            "occurrence_topology_aware_binding": True,
+            "temporal_relation_admission_records": [],
+            "temporal_relation_admission_record_count": 0,
+            "temporal_relation_state_counts": {},
+            "provider_time_contract_admission_status": "NOT_EVALUATED",
+            "current_actor_acquisition_release_interval_projection_bound": False,
+            "current_actor_acquisition_release_interval_status": "NOT_EVALUATED",
+            "current_actor_acquisition_release_interval_candidate_count": 0,
             "hard_block_hits": ["current_occurrence_or_required_upstream_output_missing"],
             "review_hits": [],
             "trackable_action_candidate_is_event_truth": False,
@@ -108,6 +182,10 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         occurrence_payload,
         trackable.build_trackable_action_trace_candidates,
     )
+    payload = apply_occurrence_topology_binding(payload, occurrence_payload)
+    context_payload = build_provider_time_runtime_context(input_dir)
+    payload = bind_temporal_relation_admission(payload, context_payload)
+    payload["provider_time_runtime_context_source"] = context_payload.get("runtime_context_source")
     payload["current_occurrence_status"] = occurrence_payload.get("status")
     payload["current_occurrence_candidate_count"] = occurrence_payload.get(
         "action_occurrence_candidate_count", 0
@@ -135,9 +213,14 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         payload["status"] = "FAIL_CLOSED"
         payload["module_status"] = "FAIL_CLOSED"
         payload["runtime_evidence_status"] = "NOT_EVALUATED"
+
+    _write_interval_projection(payload, output)
     payload["active_match_evidence_pass"] = False
     paths = trackable.write_outputs(payload, output)
     payload["outputs"] = {key: str(path) for key, path in paths.items()}
+    payload["outputs"]["observed_actor_acquisition_release_interval_projection"] = str(
+        output / INTERVAL_OUTPUT_JSON
+    )
     return payload
 
 
@@ -169,8 +252,23 @@ def main() -> int:
                 "trackable_action_trace_candidate_count": payload.get("trackable_action_trace_candidate_count"),
                 "occurrence_bound_trace_candidate_count": payload.get("occurrence_bound_trace_candidate_count", 0),
                 "occurrence_both_participants_trace_visible_count": payload.get("occurrence_both_participants_trace_visible_count", 0),
+                "occurrence_single_actor_trace_visible_count": payload.get("occurrence_single_actor_trace_visible_count", 0),
                 "occurrence_partial_participant_trace_visible_count": payload.get("occurrence_partial_participant_trace_visible_count", 0),
                 "occurrence_no_participant_trace_visible_count": payload.get("occurrence_no_participant_trace_visible_count", 0),
+                "occurrence_unresolved_topology_count": payload.get("occurrence_unresolved_topology_count", 0),
+                "provider_time_contract_admission_status": payload.get("provider_time_contract_admission_status"),
+                "provider_time_runtime_context_source": payload.get("provider_time_runtime_context_source"),
+                "temporal_relation_admission_record_count": payload.get("temporal_relation_admission_record_count", 0),
+                "temporal_relation_state_counts": payload.get("temporal_relation_state_counts") or {},
+                "current_actor_acquisition_release_interval_status": payload.get(
+                    "current_actor_acquisition_release_interval_status"
+                ),
+                "current_actor_acquisition_release_interval_candidate_count": payload.get(
+                    "current_actor_acquisition_release_interval_candidate_count", 0
+                ),
+                "current_actor_acquisition_release_interval_projection_bound": payload.get(
+                    "current_actor_acquisition_release_interval_projection_bound", False
+                ),
                 "hard_block_hits": payload.get("hard_block_hits") or [],
                 "review_hits": payload.get("review_hits") or [],
                 "canonical_event_count": "UNKNOWN",

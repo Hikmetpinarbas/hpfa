@@ -45,9 +45,7 @@ def spine_runner_module(root: Path):
 
 
 def canonical_event_lite_module(root: Path):
-    src = root / "hpfa" / "modules" / "core" / "canonical_event_lite" / "src"
-    ensure_module_path(src)
-    import canonical_event_lite  # type: ignore
+    from hpfa.modules.core.canonical_event_lite.src import canonical_event_lite
 
     return canonical_event_lite
 

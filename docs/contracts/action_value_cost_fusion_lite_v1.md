@@ -12,11 +12,16 @@ Action Value Cost Fusion Lite V1
 
 ## Purpose
 
-Create claim-safe candidate packs that connect event-benefit families, spatial/time candidates and physical-cost families.
+Create claim-safe candidate packs that connect admitted action-benefit evidence, spatial/time candidates and physical-cost families without making ACTION/EVENT the product-wide observation ceiling.
 
-This node is downstream of Metric Family Registry Lite V1 and the existing Event-Only Metric Fusion Engine V1.
+Canonical doctrine:
 
-It is not allowed to run as production-bound while primary event surface remains unresolved.
+```text
+EVENT ⊂ ZFGV
+ZFGV != EVENT
+```
+
+This node is downstream of construct-specific observation admission and ZFGV metric/evidence relation layers.
 
 ## Core Rule
 
@@ -25,18 +30,35 @@ action_value_cost_fusion != football truth
 benefit_candidate != performance truth
 cost_candidate != fatigue truth
 efficiency_candidate != causality
+aggregate_support != action identity
+coordinate != tracking
 ```
+
+## Observation Requirements
+
+Each component declares its own required capabilities.
+
+ACTION_BENEFIT_CANDIDATE may require admitted ACTION/EVENT evidence and identity/time semantics.
+
+PHYSICAL_COST candidates require their own admitted source/semantic authority and must not be treated as event counts.
+
+SPATIAL/TEMPORAL candidates require their own semantics and admission.
+
+AGGREGATE/TABULAR support may be used when admitted, but it does not create action identity or an independent support vote by itself.
+
+No global event-surface gate may veto a construct that does not require ACTION/EVENT evidence.
 
 ## Required Upstream Inputs
 
-Required before candidate calculation:
+Required inputs are construct-specific and may include:
 
 ```text
-metric_family_registry_lite_v1.json
-primary_event_surface_gate_lite_v1.json
-physical_cost_surface_audit_v1.json
-event_identity_resolution_gate_lite_v1.json
-metric_support_graph_v1 output when available
+metric/construct registry admission
+observation capability manifest
+provenance/dependency lineage
+physical_cost_surface_audit_v1.json when physical-cost evidence is used
+ACTION/EVENT identity/surface admission only when an action-benefit construct requires it
+metric/evidence support graph when available
 ```
 
 ## Candidate Families
@@ -54,10 +76,10 @@ FUSION_RELATION_CANDIDATE
 No calibrated formula is accepted yet. Initial deterministic skeleton:
 
 ```text
-benefit_candidate = progression_family + access_family + threat_family + retention_context
-cost_candidate = physical_distance + high_intensity + sprint + acceleration + deceleration + time_cost
-risk_candidate = turnover_context + failed_action_context + reset_context
-efficiency_candidate = benefit_candidate / cost_candidate only when numerator and denominator are bound
+benefit_candidate = admitted progression/access/threat/retention evidence
+cost_candidate = admitted physical-cost evidence only
+risk_candidate = admitted turnover/failed-action/reset context when available
+efficiency_candidate = benefit_candidate / cost_candidate only when numerator and denominator are semantically bound and denominator policy is admitted
 ```
 
 ## Binding Status
@@ -69,13 +91,15 @@ UNBOUND
 TEAM_BOUND
 PLAYER_BOUND
 TIME_BOUND
-EVENT_BOUND_CANDIDATE_ONLY
+ACTION_BOUND_CANDIDATE_ONLY
+OBSERVATION_BOUND_CANDIDATE_ONLY
 ```
 
 Forbidden:
 
 ```text
 EVENT_BOUND_TRUTH
+PHYSICAL_COST_TRUTH_WITHOUT_AUTHORITY
 ```
 
 ## Allowed Output
@@ -99,7 +123,8 @@ fatigue truth
 medical truth
 dominance truth
 coach intention
-primary event truth
+canonical event truth
+causality
 ```
 
 ## Current Product Status
@@ -113,5 +138,5 @@ PRODUCTION_RELEASE_NOT_GRANTED
 ## Correct Predecessor
 
 ```text
-Metric Family Registry Lite V1
+Construct-specific ZFGV observation admission + Metric Family Registry Lite V1
 ```

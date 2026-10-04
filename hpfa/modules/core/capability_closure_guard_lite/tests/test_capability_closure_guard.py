@@ -15,7 +15,7 @@ GOLDEN_EXPECTED = {
     "active_match_spine_runner": "ACTIVE_CONTRACT",
     "content_source_role_resolver_lite": "ACTIVE_CONTRACT",
     "canonical_ingest_surface_manifest": "ACTIVE_CONTRACT",
-    "core_pipeline_orchestrator_lite": "TEST_ONLY_SURFACE",
+    "core_pipeline_orchestrator_lite": "UNBOUND_IMPLEMENTATION",
     "support_report_concept_surface_gate_lite": "SUPERSEDED_CONTRACT",
 }
 

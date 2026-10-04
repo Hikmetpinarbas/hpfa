@@ -24,7 +24,7 @@ from multi_signal_evidence_fusion import fuse_packet
 from composite_argument_builder import build_argument_candidate
 from defeasible_argument_router import route_argument
 from evidence_graph_engine import build_evidence_graph
-from evidence_lens_matrix import build_lens_matrix
+from evidence_lens_matrix import bind_construct_lens_contract, build_lens_matrix
 from safe_argument_router_tr import route_safe_sentence
 from analyst_report_block_composer import compose_report_block
 from report_output_contract import evaluate_report_block
@@ -50,6 +50,33 @@ def supported_candidate():
     }
 
 
+def aggregate_construct_candidate():
+    return {
+        "packet_family": "source_integrity",
+        "input_features": [],
+        "input_windows": [],
+        "input_sequences": [],
+        "input_metrics": [
+            {
+                "metric_id": "aggregate_metric_001",
+                "source_surface": "xlsx_team_aggregate",
+                "lens": "aggregate",
+            }
+        ],
+        "supporting_signals": [
+            {
+                "signal_id": "aggregate_support_001",
+                "source_surface": "xlsx_team_aggregate",
+                "lens": "aggregate",
+            }
+        ],
+        "contradicting_signals": [],
+        "required_lenses": ["aggregate"],
+        "optional_lenses": ["team", "context", "contradiction"],
+        "claim_ceiling": "composite_candidate_only",
+    }
+
+
 def explicit_contradiction_candidate():
     candidate = supported_candidate()
     candidate["contradicting_signals"] = [
@@ -58,6 +85,33 @@ def explicit_contradiction_candidate():
             "source_surface": "counter_surface",
             "relation_type": "CONTRADICTS",
             "contradiction_basis": "same_construct_same_window_opposite_direction_candidate",
+            "comparison_question_id": "progression_terminal_outcome",
+            "comparison_unit": "episode_candidate",
+            "exact_dimensions": ["team", "game_state", "start_zone"],
+            "coarsened_dimensions": [],
+            "test_dimensions": ["terminal_outcome"],
+            "forbidden_leakage_dimensions": ["terminal_outcome"],
+            "reference_context": {
+                "team": "TEAM_A",
+                "game_state": "LEVEL",
+                "start_zone": "MIDDLE_THIRD",
+            },
+            "candidate_context": {
+                "team": "TEAM_A",
+                "game_state": "LEVEL",
+                "start_zone": "MIDDLE_THIRD",
+            },
+            "reference_outcome": "SHOT_ENDING",
+            "candidate_outcome": "LOSS",
+            "outcome_relation": "OPPOSITE",
+            "provenance_root": "counter_candidate_root",
+            "dependency_group": "counter_candidate_dep",
+            "independence_group": "counter_candidate_ind",
+            "reference_provenance_root": "counter_reference_root",
+            "reference_dependency_group": "counter_reference_dep",
+            "reference_independence_group": "counter_reference_ind",
+            "independence_admission_status": "ADMITTED",
+            "independence_admission_basis": "fixture_explicit_independence_contract",
         }
     ]
     return candidate
@@ -76,7 +130,7 @@ def run_chain(candidate):
     fusion = fuse_packet(packet)
     argument = build_argument_candidate(fusion)
     route = route_argument(argument)
-    graph = build_evidence_graph(route)
+    graph = bind_construct_lens_contract(build_evidence_graph(route), packet)
     lens = build_lens_matrix(graph)
     safe_sentence = route_safe_sentence(graph)
     report_block = compose_report_block(safe_sentence)
@@ -118,6 +172,20 @@ def test_intelligence_chain_standard_fields_connect():
     assert chain["report_block"]["safe_sentence_id"] == chain["safe_sentence"]["safe_sentence_id"]
     assert chain["output_contract"]["report_block_id"] == chain["report_block"]["report_block_id"]
     assert chain["assembly"]["contract_item_id"] == chain["output_contract"]["contract_item_id"]
+
+
+def test_zfgv_construct_specific_lens_requirements_survive_the_intelligence_chain():
+    chain = run_chain(aggregate_construct_candidate())
+
+    assert chain["packet"]["status"] == "SMOKE_PASS"
+    assert chain["fusion"]["fusion_status"] == "SUPPORTED"
+    assert chain["graph"]["status"] == "SMOKE_PASS"
+    assert chain["lens"]["lens_requirement_mode"] == "EXPLICIT_ZFGV"
+    assert chain["lens"]["required_lenses"] == ["aggregate"]
+    assert chain["lens"]["status"] == "SMOKE_PASS"
+    assert chain["lens"]["missing_required_lenses"] == []
+    assert "aggregate" in chain["lens"]["covered_lenses"]
+    assert "action" not in chain["lens"]["required_lenses"]
 
 
 def test_intelligence_chain_explicit_counterevidence_remains_review_bounded():

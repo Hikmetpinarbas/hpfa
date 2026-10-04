@@ -1,0 +1,21 @@
+HPFA THIRD-PARTY NOTICE
+
+HPFA product distribution is REVIEW_REQUIRED until dependency, donor/vendor and
+match-data redistribution rights are verified for the exact release bundle.
+
+Canonical core:
+- No mandatory third-party Python runtime dependency is declared.
+- Optional capabilities are isolated by dependency group.
+
+Optional dependency license families currently recorded:
+- xlrd: BSD family
+- pypdf: BSD-3-Clause
+- pytest: MIT (development only)
+- openpyxl: MIT (development/test fixtures)
+- legacy visualization/tooling dependencies require release-time notice review.
+
+vendor/hp_engine and vendor/hp_cdl are excluded from product distribution until
+their provenance, copyright, commercial-use and redistribution rights are verified.
+
+Third-party rights are not relicensed by the HPFA proprietary notice.
+See THIRD_PARTY_NOTICES.md in the source repository for the living review record.

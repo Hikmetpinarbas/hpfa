@@ -7,6 +7,7 @@ from typing import Any
 from hpfa.modules.core.aggregate_definition_alignment_lite.src.aggregate_definition_alignment import build_alignment
 from hpfa.modules.core.metric_definition_policy_lite.src.metric_definition_policy import load_policy_pack
 from hpfa.modules.core.provider_metric_dictionary_lite.src.provider_metric_dictionary import load_dictionary_pack
+from hpfa.modules.core.active_match_spine_runner.src.metric_anatomy_bridge import write_metric_anatomy
 
 MODULE_ID = "active_match_metric_governance_bridge_v1"
 OUTPUT_JSON = "active_match_metric_governance_bridge_v1.json"
@@ -99,28 +100,63 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         if isinstance(row, dict) and row.get("alignment_decision") == "DEFINITION_ALIGNMENT_CANDIDATE"
     ]
 
+    anatomy: dict[str, Any]
+    try:
+        anatomy = write_metric_anatomy(output, root, alignment)
+        anatomy_status = _status(anatomy.get("status"))
+        if anatomy_status == "FAIL_CLOSED":
+            hard_blocks.append("metric_anatomy_bridge_fail_closed")
+        elif anatomy_status == "REVIEW_REQUIRED":
+            review_hits.append("metric_anatomy_bridge_review_required")
+    except Exception as exc:
+        anatomy = {
+            "module_id": "active_match_metric_anatomy_bridge_v1",
+            "status": "FAIL_CLOSED",
+            "hard_block_hits": [f"metric_anatomy_bridge_exception:{type(exc).__name__}"],
+            "review_hits": [],
+            "label_surface_anatomy_candidate_count": 0,
+            "micro_aggregate_linked_label_candidate_count": 0,
+            "definition_anatomy_candidate_count": 0,
+            "current_invocation_artifacts": [],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+        anatomy_status = "FAIL_CLOSED"
+        hard_blocks.append(anatomy["hard_block_hits"][0])
+
     payload = {
         "module_id": MODULE_ID,
         "status": "FAIL_CLOSED" if hard_blocks else ("REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"),
         "metric_definition_policy_status": policy_status,
         "provider_metric_dictionary_status": dictionary_status,
         "aggregate_definition_alignment_status": alignment_status,
+        "metric_anatomy_status": anatomy_status,
         "metric_definition_candidate_count": policy.get("metric_definition_candidate_count"),
         "provider_definition_ready_count": dictionary.get("provider_definition_ready_count"),
         "hpfa_domain_contract_ready_count": dictionary.get("hpfa_domain_contract_ready_count"),
         "aggregate_definition_candidate_count": alignment.get("definition_candidate_count"),
         "aggregate_definition_admitted_candidate_count": len(admitted_alignment_rows),
         "aggregate_alignment_decision_counts": alignment.get("alignment_decision_counts") or {},
+        "metric_anatomy_candidate_count": anatomy.get("label_surface_anatomy_candidate_count", 0),
+        "metric_anatomy_linked_label_candidate_count": anatomy.get(
+            "micro_aggregate_linked_label_candidate_count", 0
+        ),
+        "metric_definition_anatomy_candidate_count": anatomy.get(
+            "definition_anatomy_candidate_count", 0
+        ),
         "prerequisites": prerequisites,
         "metric_policy": policy,
         "provider_metric_dictionary": dictionary,
         "aggregate_definition_alignment": alignment,
+        "metric_anatomy": anatomy,
         "hard_block_hits": list(dict.fromkeys(hard_blocks)),
         "review_hits": list(dict.fromkeys(review_hits)),
         "metric_value_output_allowed": False,
         "construct_truth": False,
         "aggregate_equivalence_truth": False,
         "same_provider_multiformat_is_independent_support": False,
+        "metric_anatomy_numeric_reconciliation_allowed": False,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
         "production_release": False,
@@ -136,19 +172,27 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         f"metric_definition_policy_status={policy_status}",
         f"provider_metric_dictionary_status={dictionary_status}",
         f"aggregate_definition_alignment_status={alignment_status}",
+        f"metric_anatomy_status={anatomy_status}",
         f"metric_definition_candidate_count={payload['metric_definition_candidate_count']}",
         f"provider_definition_ready_count={payload['provider_definition_ready_count']}",
         f"hpfa_domain_contract_ready_count={payload['hpfa_domain_contract_ready_count']}",
         f"aggregate_definition_candidate_count={payload['aggregate_definition_candidate_count']}",
         f"aggregate_definition_admitted_candidate_count={payload['aggregate_definition_admitted_candidate_count']}",
+        f"metric_anatomy_candidate_count={payload['metric_anatomy_candidate_count']}",
+        f"metric_anatomy_linked_label_candidate_count={payload['metric_anatomy_linked_label_candidate_count']}",
         f"hard_block_hits={payload['hard_block_hits']}",
         f"review_hits={payload['review_hits']}",
         "metric_value_output_allowed=false",
+        "metric_anatomy_numeric_reconciliation_allowed=false",
         "construct_truth=false",
         "canonical_event_count=UNKNOWN",
         "true_action_count=UNKNOWN",
         "production_release=false",
         "",
     ]), encoding="utf-8")
-    payload["current_invocation_artifacts"] = [str(json_path), str(txt_path)]
+    payload["current_invocation_artifacts"] = [
+        *[str(value) for value in anatomy.get("current_invocation_artifacts") or []],
+        str(json_path),
+        str(txt_path),
+    ]
     return payload

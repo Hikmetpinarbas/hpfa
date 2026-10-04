@@ -1,6 +1,67 @@
 # HPFA — Hikmet Pınarbaş Football Analytics
 
-HPFA is an event-only, claim-safe Football Intelligence Platform. Its purpose is to turn visible match evidence into defensible analyst intelligence without promoting rows, labels, timestamps, metrics, or model outputs beyond the evidence that supports them.
+HPFA is a claim-safe Football Intelligence Platform built on **Enriched Football Observation Data** (`Zenginleştirilmiş Futbol Gözlem Verisi`). Its purpose is to turn visible match evidence into defensible analyst intelligence without promoting rows, labels, timestamps, coordinates, participation tags, metric surfaces, or model outputs beyond the evidence that supports them.
+
+`event-only` is retained only as a legacy/source-class description where historically necessary. It is **not** the product's global observation ceiling.
+
+HPFA observation capacity is admitted construct-by-construct from the fields and relationships actually visible in the current match surfaces. Depending on upstream admission, these surfaces may expose action, temporal, spatial, relational/co-occurrence, process/context, consequence/response, and reconstructed state-transition candidates. Tracking/video remains required only for constructs whose physical or off-ball truth cannot be established from the admitted observation surface.
+
+## Product scope and portability doctrine
+
+The current reference product is **single-match Postmatch**. This is a product/validation scope, not an architectural dependency on one fixture, team, competition, provider, machine, path or user interface.
+
+The intended product is a portable, headless Football Intelligence Core that can be reused behind CLI, API, web, mobile, desktop, on-premise club infrastructure or private-cloud delivery layers without changing football truth semantics.
+
+The architecture boundary is:
+
+```text
+INPUT / PROVIDER ADAPTERS
+→ CANONICAL OBSERVATION + ADMISSION CONTRACTS
+→ MATCH-AGNOSTIC FOOTBALL INTELLIGENCE CORE
+→ CLAIM-SAFE ARTIFACT CONTRACTS
+→ DELIVERY ADAPTERS / API / WEB / APP / REPORT
+```
+
+The following are hard product rules:
+
+- single-match Postmatch is the first reference product, not a single-match hard-code model;
+- product core is match-agnostic, team-agnostic, competition-agnostic and provider-agnostic behind explicit adapters/contracts;
+- fixture identities, team names, player names, dates and sample-specific values must never control product logic;
+- sample-match identities may exist only in runtime input, test fixtures, validation artefacts or explicitly isolated examples;
+- provider-specific labels must be normalized/admitted at the boundary and must not become universal football truth inside the core;
+- Termux is a physical validation environment, not a runtime requirement of the product;
+- GitHub, Drive, Dropbox, web connectors and cloud services are support/ingestion/operator surfaces, not mandatory dependencies of football reasoning;
+- once admitted input artefacts are locally available, core reasoning must not require a live network service;
+- filesystem paths are runtime configuration/authority inputs, never football semantics;
+- each match run has isolated state and deterministic artefacts; no hidden global mutable match state may change another match's result;
+- cross-match intelligence must compose admitted per-match artefacts later; it must not be simulated by leaking one fixture into another;
+- missing provider capability must FAIL_CLOSED or DOWNGRADE according to construct requirements, never trigger a hidden sample-specific fallback;
+- core outputs must be machine-readable/serializable so a website, app, API or club platform can consume the same evidence and finding contracts without reimplementing football logic;
+- UI/presentation code never owns evidence truth, finding truth or claim admission;
+- deployment packaging may have normal software/runtime dependencies, but there must be no hard operational dependency on one device, one provider, one external service or one match dataset.
+
+The long-term commercial target is therefore not a script that analyzes one fixture. It is a reusable autonomous football-analysis system whose ingestion, reasoning, evidence audit and analyst-output contracts can be deployed for professional clubs while preserving the same claim-safety rules.
+
+## Installation and distribution status
+
+HPFA is currently a private pre-release product. The source tree is not approved
+for public package-index upload or external/commercial redistribution.
+
+The canonical Python package is built from the match-agnostic hpfa and canon
+namespace trees. Generated runtime/output material, vendor/donor snapshots and
+historical match artefacts are not part of the distribution package.
+
+Base core installation intentionally has no mandatory third-party Python runtime
+dependency. Optional capabilities are explicit:
+
+- xls: historical .xls support;
+- reference: reference-document ingestion;
+- dev: tests and XLSX test/bootstrap fixtures;
+- legacy-tools: non-core historical/visual tooling.
+
+Copyright and redistribution boundaries are defined in LICENSE, NOTICE and
+THIRD_PARTY_NOTICES.md. Unknown donor, provider-data or third-party rights remain
+REVIEW_REQUIRED and cannot be promoted by packaging.
 
 ## Authority
 
@@ -21,9 +82,10 @@ RAW / SURFACE
 → Evidence Atom
 → match-local identity candidates
 → semantic roles / action candidates
+→ temporal + spatial + relational observation admission
 → partial order / time
-→ consequence
-→ context
+→ consequence / response
+→ context / process participation
 → Analyst Episode
 → Episode Features
 → Change
@@ -36,6 +98,30 @@ RAW / SURFACE
 
 This is a conceptual DAG. A node that is not implemented and admitted must not be presented as current product truth.
 
+## Observation capacity model
+
+HPFA must not decide claim capacity from a binary `event-only / tracking` label. Each construct declares the minimum admitted observation surface it needs.
+
+```text
+L0  Aggregate surface
+L1  Action observation
+L2  Temporal observation
+L3  Spatial observation
+L4  Relational / co-occurrence observation
+L5  Process / context observation
+L6  Consequence / opponent-response observation
+L7  Reconstructed state-transition candidate
+L8  Tracking/video-required physical or off-ball state
+```
+
+A construct may use any admitted lower/equal layer. Higher-layer truth must not be inferred from a lower layer without an explicit gate.
+
+Examples:
+- action-location progression may be available at L3 without tracking;
+- same-process multi-player participation may be available at L4/L5 when identity/reflection/time gates admit it;
+- visible opponent-response latency candidates may be available at L6 when occurrence/process binding and temporal admission support them;
+- true player speed, true pressure geometry, compactness, body orientation and off-ball team shape remain L8 unless an explicit tracking/video source is admitted.
+
 ## Current safety locks
 
 Unless an explicit upstream gate proves otherwise:
@@ -46,7 +132,7 @@ true_action_count=UNKNOWN
 production_release=false
 ```
 
-Event-only evidence does not directly prove team shape, defensive-line height, compactness, pitch control, off-ball structure, body orientation, scanning, physical load/fatigue, coach intention, tactical plan, dominance, or causality.
+No observation layer directly proves more than its admitted construct. In particular, current non-tracking surfaces do not directly prove true player/ball speed, team shape, defensive-line height, compactness, pitch control, off-ball structure, body orientation, scanning, physical load/fatigue, coach intention, tactical plan, dominance, or causality.
 
 ## Engineering rules
 
@@ -55,12 +141,15 @@ Event-only evidence does not directly prove team shape, defensive-line height, c
 - `CODE_LAST`
 - current `hpfa` producer/contracts/tests before donor code
 - same SHA on multiple paths is duplicate reflection/lineage, not independent evidence
-- CSV/XML reflections from the same upstream fact are not independent football votes
+- CSV/XML/XLSX reflections from the same upstream fact are not independent football votes
 - numeric time is not chronology without semantic-role/unit/clock-basis/period/provenance admission
 - same timestamp does not create internal order
 - source row order is provenance only
+- spatial coordinates require source semantics, pitch frame and direction admission before directional football claims
+- multi-row/multi-surface co-occurrence requires reflection and identity reconciliation before relational truth
 - upstream FAIL_CLOSED contracts downstream permission
 - product code is match-agnostic; sample match identity leakage is forbidden
+- do not globally block a construct merely because it is richer than a traditional event feed; instead evaluate the exact admitted observation surface it requires
 
 ## Repository map
 
@@ -100,7 +189,7 @@ PASS is not release.
 
 ## Current development direction
 
-Correctness debt that blocks downstream reasoning must be closed before capability growth. New intelligence should extend the existing evidence spine instead of creating parallel engines. Priority families are evidence dependency/independence, counterevidence/falsification, episode reliability, change, recurrence/variation/deviation, and safe findings.
+Correctness debt that blocks downstream reasoning must be closed before capability growth. New intelligence should extend the existing evidence spine instead of creating parallel engines. Priority families are observation-capacity admission, evidence dependency/independence, temporal/spatial/relational reconstruction, counterevidence/falsification, episode reliability, change, recurrence/variation/deviation, and safe findings.
 
 ## Operator rule
 
@@ -111,6 +200,7 @@ problem
 → current producer
 → gap
 → source role
+→ observation surface / required layer
 → contract
 → admission rule
 → invariants/tests

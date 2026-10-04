@@ -1,0 +1,150 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import safe_finding_admission_current_v1 as runtime
+
+
+def test_process_context_is_applied_before_counterevidence_and_safe_finding(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    sequence_path = tmp_path / "visible_action_sequence_candidates_lite_v1.json"
+    sequence_path.write_text(
+        json.dumps({
+            "comparable_outcome_counterevidence_status": "PASS",
+            "safe_finding_handoff_candidates": [
+                {"safe_finding_handoff_candidate_id": "legacy_handoff"}
+            ],
+            "safe_finding_handoff_candidate_count": 1,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }),
+        encoding="utf-8",
+    )
+    (tmp_path / runtime.PROCESS_PARTICIPATION_NAME).write_text(
+        json.dumps({
+            "status": "PASS",
+            "process_participation_candidates": [{"semantic_role": "CONTEXT_INTERVAL"}],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }),
+        encoding="utf-8",
+    )
+    (tmp_path / runtime.OCCURRENCE_CONSEQUENCE_NAME).write_text(
+        json.dumps({
+            "status": "PASS",
+            "occurrence_consequence_projections": [{}],
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }),
+        encoding="utf-8",
+    )
+
+    def fake_context(payload, process_payload, occurrence_payload, occurrence_state_payload=None):
+        result = dict(payload)
+        result["process_comparison_context_consumed"] = True
+        result["process_comparison_context_binding_state"] = (
+            "PROVIDER_REVIEWED_TEAM_PROCESS_CONTEXT_APPLIED_DOWNWARD_ONLY"
+        )
+        result["process_comparison_context_lowered_pair_count"] = 1
+        result["process_comparison_context_can_create_new_pair"] = False
+        return result
+
+    def fake_counterevidence(payload):
+        assert payload["process_comparison_context_consumed"] is True
+        return {
+            "status": "PASS",
+            "comparable_outcome_counterevidence_records": [],
+            "comparable_outcome_counterevidence_record_count": 0,
+            "comparable_outcome_contrast_state_counts": {},
+            "comparison_eligible_record_count": 0,
+            "comparable_counterevidence_candidate_count": 0,
+            "canonical_evidence_classification_applied": True,
+            "canonical_evidence_direction_classes": [
+                "COUNTEREVIDENCE",
+                "NON_SUPPORT",
+                "NOT_EVALUATED",
+                "SUPPORT",
+                "UNRESOLVED",
+            ],
+            "legacy_canonical_evidence_direction_counts": {
+                "SUPPORT": 3,
+                "COUNTEREVIDENCE": 1,
+                "UNRESOLVED": 2,
+            },
+            "branch_canonical_evidence_direction_counts": {
+                "NON_SUPPORT": 1,
+            },
+            "legacy_dependency_challenge_record_count": 4,
+            "claim_target_denominator_binding_applied": True,
+            "legacy_denominator_binding_state_counts": {
+                "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND": 6,
+            },
+            "branch_denominator_binding_state_counts": {
+                "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND": 2,
+            },
+            "falsification_invalidation_contract_applied": True,
+            "safe_finding_handoff_candidates": [],
+            "safe_finding_handoff_candidate_count": 0,
+            "safe_finding_handoff_finding_status_counts": {
+                "EMIT": 0,
+                "DOWNGRADE": 0,
+                "ABSTAIN": 0,
+            },
+            "professional_finding_emitted_count": 0,
+            "safe_finding_handoff_claim_ceiling": (
+                "DOWNGRADED_MATCH_LOCAL_SAFE_FINDING_HANDOFF_CANDIDATE_ONLY"
+            ),
+            "claim_ceiling": (
+                "MATCH_LOCAL_COMPARABLE_VISIBLE_OUTCOME_COUNTEREVIDENCE_CANDIDATE_ONLY"
+            ),
+        }
+
+    monkeypatch.setattr(runtime, "apply_process_context_to_comparison", fake_context)
+    monkeypatch.setattr(runtime, "build_comparable_outcome_counterevidence", fake_counterevidence)
+
+    result = runtime.runtime_write_outputs(sequence_path, tmp_path)
+    persisted = json.loads(sequence_path.read_text(encoding="utf-8"))
+
+    assert result["process_comparison_context_consumed"] is True
+    assert result["process_comparison_context_lowered_pair_count"] == 1
+    assert result["process_context_counterevidence_recomputed"] is True
+    assert result["process_context_can_create_new_pair"] is False
+    assert persisted["safe_finding_handoff_candidate_count"] == 0
+    assert persisted["safe_finding_handoff_candidates"] == []
+    assert persisted["comparison_eligible_outcome_record_count"] == 0
+    assert persisted["canonical_evidence_classification_applied"] is True
+    assert persisted["legacy_canonical_evidence_direction_counts"] == {
+        "SUPPORT": 3,
+        "COUNTEREVIDENCE": 1,
+        "UNRESOLVED": 2,
+    }
+    assert persisted["branch_canonical_evidence_direction_counts"] == {"NON_SUPPORT": 1}
+    assert persisted["legacy_dependency_challenge_record_count"] == 4
+    assert persisted["claim_target_denominator_binding_applied"] is True
+    assert persisted["legacy_denominator_binding_state_counts"] == {
+        "FROZEN_COMPARABLE_SET_ELIGIBLE_CASE_DENOMINATOR_BOUND": 6,
+    }
+    assert persisted["branch_denominator_binding_state_counts"] == {
+        "FROZEN_BRANCH_ELIGIBLE_CASE_DENOMINATOR_BOUND": 2,
+    }
+    assert persisted["pair_record_is_eligible_denominator"] is False
+    assert persisted["pair_count_is_eligible_denominator"] is False
+    assert persisted["eligible_denominator_is_independent_evidence_count"] is False
+    assert persisted["falsification_invalidation_contract_applied"] is True
+    assert persisted["falsifier_is_invalidator"] is False
+    assert persisted["invalidator_is_falsifier"] is False
+    assert persisted["invalidator_is_counterevidence"] is False
+    assert persisted["invalidator_makes_claim_false"] is False
+    assert persisted["dependency_challenge_is_evidence_direction"] is False
+    assert persisted["dependency_challenge_changes_evidence_direction"] is False
+    assert persisted["non_support_is_counterevidence"] is False
+    assert persisted["unresolved_is_failure"] is False
+    assert persisted["canonical_event_count"] == "UNKNOWN"
+    assert persisted["true_action_count"] == "UNKNOWN"
+    assert persisted["production_release"] is False

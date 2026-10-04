@@ -18,6 +18,10 @@ on:
       - ".github/workflows/provider-metric-dictionary-lite-v1.yml"
   workflow_dispatch:
 
+concurrency:
+  group: hpfa-${{ github.workflow_ref }}-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest

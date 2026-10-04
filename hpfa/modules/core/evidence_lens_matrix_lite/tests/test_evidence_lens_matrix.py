@@ -60,6 +60,46 @@ def test_missing_lens_routes_to_review_not_absence_claim():
     assert matrix["absence_inference_allowed"] is False
 
 
+def test_explicit_action_construct_only_requires_declared_action_lens():
+    graph = base_graph()
+    graph["required_lenses"] = ["action"]
+    graph["nodes"] = [
+        {
+            "node_id": "action_1",
+            "node_type": "evidence_ref",
+            "payload": {"lens": "action", "ref": "action_ref"},
+        }
+    ]
+
+    matrix = build_lens_matrix(graph)
+
+    assert matrix["status"] == "SMOKE_PASS"
+    assert matrix["required_lenses"] == ["action"]
+    assert matrix["missing_required_lenses"] == []
+    assert "time" not in matrix["missing_required_lenses"]
+
+
+def test_explicit_aggregate_construct_does_not_require_fake_action_lens():
+    graph = base_graph()
+    graph["required_lenses"] = ["aggregate"]
+    graph["optional_lenses"] = ["actor", "team", "context", "contradiction"]
+    graph["nodes"] = [
+        {
+            "node_id": "aggregate_1",
+            "node_type": "evidence_ref",
+            "payload": {"lens": "aggregate", "ref": "xlsx_metric_surface"},
+        }
+    ]
+
+    matrix = build_lens_matrix(graph)
+
+    assert matrix["status"] == "SMOKE_PASS"
+    assert matrix["required_lenses"] == ["aggregate"]
+    assert matrix["missing_required_lenses"] == []
+    assert "action" not in matrix["missing_required_lenses"]
+    assert matrix["absence_inference_allowed"] is False
+
+
 def test_coverage_score_is_inventory_fraction():
     graph = base_graph()
     graph["nodes"] = graph["nodes"][:4]

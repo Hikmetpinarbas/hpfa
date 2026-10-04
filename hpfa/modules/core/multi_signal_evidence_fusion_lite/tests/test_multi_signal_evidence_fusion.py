@@ -84,11 +84,15 @@ def test_low_shot_volume_qualifies_not_contradicts_by_default():
     assert any(row["signal_ref"] == "low_shot_volume" and row["relation_type"] == "QUALIFIES" for row in record["relation_records"])
 
 
-def test_explicit_contradiction_requires_basis():
+def test_declared_contradiction_without_comparison_contract_downgrades_to_qualifier():
     record = fuse_packet(explicit_contradiction_packet())
-    assert record["contradiction_signal_count"] == 1
-    assert record["fusion_status"] == "MIXED_WITH_EXPLICIT_CONTRADICTION"
-    assert any(row["relation_type"] == "CONTRADICTS" for row in record["relation_records"])
+    assert record["contradiction_signal_count"] == 0
+    assert record["qualifier_signal_count"] == 1
+    assert record["fusion_status"] == "SUPPORTED_WITH_QUALIFIER"
+    row = next(row for row in record["relation_records"] if row["signal_ref"] == "same_construct_opposite_direction")
+    assert row["relation_type"] == "QUALIFIES"
+    assert row["comparison_status"] == "NOT_EVALUATED"
+    assert row["counterevidence_class"] == "UNRESOLVED"
 
 
 def test_fusion_preserves_contextualizes_relation():

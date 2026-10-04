@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[5]
 SRC = ROOT / "hpfa" / "modules" / "core" / "analyst_episode_locator_lite" / "src"
 sys.path.insert(0, str(SRC))
 
-from analyst_episode_locator import build_episode_locator, validate_output_root
+from analyst_episode_locator import _analyst_text, build_episode_locator, validate_output_root
 
 
 def _context(idx: int, second: float, period: str = "1", *, review: bool = False) -> dict:
@@ -282,3 +282,36 @@ def test_no_sample_match_identity_leak() -> None:
     text = (SRC / "analyst_episode_locator.py").read_text(encoding="utf-8")
     forbidden = ["Fenerbahce", "Galatasaray", "Genclerbirligi", "15.08.2026", "Turkey", "World Cup"]
     assert not any(token in text for token in forbidden)
+
+def test_episode_exposes_claim_safe_analyst_vocabulary_crosswalk() -> None:
+    mvc, row, semantics = _payloads()
+    result = build_episode_locator(mvc, row, semantics)
+
+    episode = next(
+        item for item in result["episode_candidates"]
+        if item["action_occurrence_eligible_count"] > 0
+    )
+    crosswalk = episode["analyst_vocabulary_crosswalk"]
+
+    assert crosswalk["primary_analyst_term"] == "VISIBLE_EVENT_SEQUENCE_WINDOW_CANDIDATE"
+    assert crosswalk["sequence_mapping_state"] == "APPROXIMATION_AVAILABLE"
+    assert crosswalk["sequence_mapping_is_sequence_truth"] is False
+    assert crosswalk["possession_mapping_state"] == "UNAVAILABLE_CURRENT_OBSERVATION_SCOPE"
+    assert crosswalk["possession_mapping_is_possession_truth"] is False
+    assert crosswalk["phase_mapping_state"] == "CONTEXT_ONLY_NOT_PHASE_MAPPING"
+    assert crosswalk["phase_mapping_is_phase_truth"] is False
+    assert crosswalk["boundary_start_reason"] == episode["boundary_start_reason"]
+    assert crosswalk["boundary_end_reason"] == episode["boundary_end_reason"]
+    assert crosswalk["same_time_order_uncertainty_present"] == bool(episode["same_time_unordered_refs"])
+    assert crosswalk["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_EVENT_SEQUENCE_WINDOW_APPROXIMATION_ONLY"
+
+
+def test_analyst_text_explains_episode_crosswalk_without_promoting_possession_or_phase_truth() -> None:
+    mvc, row, semantics = _payloads()
+    result = build_episode_locator(mvc, row, semantics)
+
+    text = _analyst_text(result)
+
+    assert "visible event-sequence window candidate" in text
+    assert "possession or tactical-phase truth" in text
+    assert "boundary basis remains visible" in text

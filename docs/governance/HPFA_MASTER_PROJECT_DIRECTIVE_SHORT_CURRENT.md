@@ -1,155 +1,150 @@
 # HPFA MASTER PROJECT DIRECTIVE — SHORT CURRENT
 
-Version: 2026.08.23-BRIDGE-LANDED
+Version: 2026.09.08-ENRICHED-OBSERVATION
 Status: ACTIVE_GOVERNANCE_RECORD
 
 ## PROJECT
 HPFA = Hikmet Pınarbaş Football Analytics.
-Event-only, claim-safe, modular and portable Football Intelligence Platform.
+Claim-safe, modular and portable Football Intelligence Platform operating on **Enriched Football Observation Data / Zenginleştirilmiş Futbol Gözlem Verisi**.
 
-HPFA produces football-behaviour evidence, pattern/sequence evidence, match-local identity evidence, rhythm/metric evidence and analyst-facing outputs without promoting unsupported tactical, causal, physical-action, possession or event truth.
+Legacy single-surface metadata remains source-lineage context where useful. Product-wide observation scope is governed by admitted temporal, spatial, relational, process, consequence and reconstructed-state capabilities.
+
+HPFA turns visible and admitted football observation into defensible analyst intelligence without promoting rows, labels, timestamps, coordinates, metrics, model outputs or reconstructed relations beyond the evidence that supports them.
+
+## OBSERVATION MODEL
+Construct admission is based on the observation layers and semantics actually required:
+
+```text
+L0_AGGREGATE_SURFACE
+L1_ACTION_OBSERVATION
+L2_TEMPORAL_OBSERVATION
+L3_SPATIAL_OBSERVATION
+L4_RELATIONAL_COOCCURRENCE_OBSERVATION
+L5_PROCESS_CONTEXT_OBSERVATION
+L6_CONSEQUENCE_OPPONENT_RESPONSE_OBSERVATION
+L7_RECONSTRUCTED_STATE_TRANSITION_CANDIDATE
+L8_TRACKING_VIDEO_PHYSICAL_OFF_BALL_STATE
+```
+
+Rules:
+- L1-L7 use construct-specific admitted observation capabilities.
+- Rich observation at L2-L7 uses explicit source/surface semantic admission.
+- L8 physical/off-ball state uses admitted tracking/video authority.
+- Coordinate authority covers admitted event-location observations; physical-state geometry uses dedicated physical-state capability.
+- Temporal authority follows admitted clock basis, period/context and provenance.
+- Co-occurrence authority covers observed co-location/co-timing; interaction strength follows admitted relation evidence.
+- Reconstructed state transitions carry candidate authority until upstream admission completes.
+- Executable admission uses construct-specific capability contracts; legacy compatibility metadata remains lineage context.
+
+The canonical executable observation contract is the current hpfa implementation of `observation_contract_lite` when landed on main. Until landing, the exact PR head is engineering evidence only.
 
 ## USER ROLE AND RUNTIME EVIDENCE
-The user is a football analyst.
+The user is a football analyst / football data analyst.
 Every real runtime result must provide two separate evidence layers:
-1. Engineering evidence: execution, tests, status, output paths, hard-block/review state.
-2. Analyst evidence: what is visible on the match surface, where it appears, which evidence supports it and its safe analyst meaning.
+1. Engineering evidence: head, input, execution, tests, status, outputs and failures.
+2. Analyst evidence: WHAT_VISIBLE, WHERE_WHEN, SUPPORT, COUNTEREVIDENCE, SAFE_MEANING, CLAIM_SCOPE, ANALYST_ACTION, ALTERNATIVE_EXPLANATION, UNCERTAINTY and WITHDRAWAL_CONDITION.
 
 ## RUNTIME AUTHORITY
 The sole ACTIVE_MATCH truth is:
 `runtime/active_single_match/current`
 
-Termux reference:
-`/data/data/com.termux/files/home/hpfa_claim_integrity/hpfa/runtime/active_single_match/current`
-
-Google Drive, Dropbox, PDFs, archives, reports, donor repos, academic literature and historical Termux apparatus are REFERENCE_ONLY / DONOR_SUPPORT. They never override ACTIVE_MATCH.
-
-Termux/local historical material may be used as capability-recovery reserve under `ADAPT_NOT_COPY`; it becomes product capability only after adaptation into current hpfa, tests and applicable current-head runtime validation.
+Absolute Termux paths are discovered at execution time; product authority comes from current repository/runtime binding.
+Google Drive, Dropbox, PDFs, archives, reports, donor repos, academic literature and historical runtime material are REFERENCE_ONLY / DONOR_SUPPORT / RESEARCH_SUPPORT / HISTORICAL_LINEAGE. They never override ACTIVE_MATCH.
 
 ## REPOSITORY ROLES
 - `hpfa`: only product repository.
-- `HP-Motor`: ingest, phase, possession, sequence, metric primitive and narrative donor.
-- `HP-Engine`: pattern, sequence intelligence, behaviour graph, semantic gate, metric graph and explanation donor.
+- `HP-Motor`: ingest, validation, phase/possession/sequence/metric primitive donor.
+- `HP-Engine`: pattern, sequence intelligence, semantic/claim gate, graph, contradiction/explanation donor.
 - `HP-PROJELERI`: governance, policy, authority, release and registry donor.
 
 ## DONOR RULE
 `ADAPT_NOT_COPY`
+`REHABILITATE_BEFORE_PARALLEL_ENGINE`
+`CODE_LAST`
 
 Required path:
-current hpfa producer → donor capability → source role → boundary → HPFA contract → HPFA module → tests → ACTIVE_MATCH when applicable → engineering evidence → analyst evidence → football audit → release decision.
+current hpfa producer → gap → donor/support role → HPFA contract → admission → invariants/tests → ACTIVE_MATCH need → minimal code → engineering evidence → analyst evidence → Red Team → release decision.
 
 ## SOURCE SEARCH ORDER BEFORE CODING
-1. current hpfa main / current producer
+1. current hpfa
 2. HP-Motor
 3. HP-Engine
 4. HP-PROJELERI
 5. Google Drive
 6. Dropbox
-7. academic support
-8. Termux capability-recovery corpus
+7. academic/web support
+8. targeted Termux discovery
+9. code
 
-Code is the final step.
-
-## CURRENT MAIN AUTHORITY
-Authoritative product ref:
-`refs/heads/main`
-
-Controlled mainline landings:
+## CURRENT PRODUCT MODEL
 
 ```text
-C1 Foundation
-  merge=f3dc7b44d6bb899033a605a690f6cc51fb0199a4
-  source_pr=#254
-
-C2 Evidence Spine
-  merge=871cd3c4948dd72b80aaa2983268811d7a22b39b
-  source_pr=#263
-
-C3 Reconstruction / Partial-Order
-  merge=adb9c1d60cf98c79fd1de1c7a6df7b822c11496a
-  source_pr=#267
-
-C4 Intelligence Correctness / Integration
-  merge=d23f868a5287811b4dc6e2912085aa85fd547a64
-  source_pr=#278
-
-Reconstruction → Intelligence Packet Bridge
-  merge=ab8c9a7a3152108eeede5b3a2204d2d1fcb14726
-  source_pr=#284
-  exact_pr_head_active_match=9b3db1afb88b2d4c592a6c7eabae718c6ab993e8
-```
-
-Historical stacked commits were not replayed as a chronological merge train. Final reviewed capability states were landed as controlled units.
-
-Main membership does not automatically establish ACTIVE_MATCH or production release.
-
-## CURRENT PRODUCT SPINE
-
-```text
-Multiformat File Inventory
-→ CSV / XLSX / XML Surface Readers
-→ Provider Alias / Field / Label / Value Semantics
-→ Content Source Role Resolver
-→ Cross-Format Reconciliation
-→ Metric Definition / Aggregate Alignment
-→ Provider Metric Dictionary
-→ Triangulated Reflection Resolution
+RAW / SURFACE
+→ source authority
+→ ACTIVE MATCH
+→ readers / provider semantics
+→ reflection control
 → Row Nucleus
 → Evidence Atom
-→ Match-Local Identity Candidates
-→ Semantic Role / Action Bundle Candidates
-→ Multi-Family Review Taxonomy
-→ Cross-Role Relation Candidates
-→ Trackable Action Trace Candidates
-→ Trackable Action Consequence Candidates
-→ Visible Action Sequence Candidates
-→ Partial-Order Hardening
-→ Reconstruction → Intelligence Packet Adapter
-→ Composite Evidence Packet
-→ Multi-Signal Fusion
-→ Composite Argument
-→ Defeasible Argument Route
-→ Evidence Graph
-→ Safe Argument Router TR
+→ match-local identity candidates
+→ action / semantic-role candidates
+→ temporal observation admission
+→ spatial observation admission
+→ relational / co-occurrence admission
+→ partial order
+→ consequence / opponent-response observation
+→ context
+→ Analyst Episode
+→ Episode Features
+→ Change
+→ Recurrence / Variation / Deviation
+→ Counterevidence / Falsifier
+→ Metric / Model candidates
+→ Defeasible Finding
 → Analyst Report Block
-→ Report Output Contract
-→ Final Report Assembly Gate
 ```
 
-Evidence Lens Matrix consumes Evidence Graph as an explicit review sidecar. Missing lens coverage cannot be treated as evidence of absence.
+This is a conceptual DAG. Current product truth consists of nodes with implemented, admitted producer/consumer binding.
 
-## RECONSTRUCTION → INTELLIGENCE BRIDGE STATUS
-The thin product bridge is now landed on main through PR #284.
+## SURFACE / COUNT RULES
+CSV, TSV, XML, XLS/XLSX, JSON and JSONL are observation surfaces.
+Surface rows carry source-observation authority; canonical occurrence identity comes from admitted identity/dependency semantics.
 
-Exact PR head runtime evidence:
+Use:
+`surface rows`, `visible rows`, `event-like rows`, `row-level evidence`, `action-family volume`, `observation candidate`, `process candidate`, `state-transition candidate`.
 
-```text
-head=9b3db1afb88b2d4c592a6c7eabae718c6ab993e8
-runtime_authority=runtime/active_single_match/current
-run_rc=0
-runtime_evidence_status=ACTIVE_MATCH_EVIDENCE_PASS
-module_status=REVIEW_REQUIRED
-source_visible_action_sequence_candidate_count=295
-packet_input_candidate_count=295
-composite_packet_count=295
-blocked_composite_packet_count=0
-review_required_packet_input_candidate_count=56
-packet_input_assignment_complete=true
-packet_contract_pass=true
-partial_order_boundary_pass=true
-canonical_event_count=UNKNOWN
-true_action_count=UNKNOWN
-production_release=false
-```
+Interpretation authority:
+- missing values retain explicit missing-state semantics;
+- missing columns retain capability-state semantics;
+- same timestamps use admitted temporal-relation states;
+- provider labels enter canonical semantics through explicit mapping/admission;
+- CSV/XML mirrors share dependency lineage;
+- XLSX aggregate rows carry contextual/tabular authority.
 
-Bundle SHA-256:
-`33c363534fe932a07b22a9e462e2c3765ca8a4cf2f11cae5d4f9c8f58ca0a205`
+Until explicit later admission:
+`canonical_event_count=UNKNOWN`
+`true_action_count=UNKNOWN`
 
-This runtime evidence is bound to the exact PR head above. Because #284 was squash-merged, the merged main head still requires fresh ACTIVE_MATCH revalidation before merged-main runtime promotion.
+## DUPLICATE / REFLECTION RULE
+Same SHA-256 at different paths is classified as an exact duplicate reflection/lineage observation; conflict status requires a semantic/content disagreement.
+CSV/XML/XLSX reflections of the same upstream fact share one dependency lineage and contribute one football-evidence volume.
 
-## PARTIAL-ORDER AUTHORITY
-Allowed states:
+## IDENTITY / RELATION RULE
+Provider fields, codes, aliases, team/player tokens, action labels and relation labels begin as candidates.
+Identity is match-local unless an explicit registry proves otherwise.
+Row-nucleus authority: source-surface observation nucleus.
+Action-occurrence authority: admitted match-local action occurrence candidate.
+Action-bundle authority: grouped semantic/action-facet structure.
+Label authority: provider/source semantic annotation candidate.
+Co-occurrence authority: shared time/space observation; interaction strength follows the admitted relation contract.
 
+## TIME RULE
+Numeric time parseability supplies a temporal field; football chronology follows admitted clock, period and relation semantics.
+Admission requires semantic role + unit + clock basis + period/context + provenance.
+Source row order/event_index/list order is provenance only.
+Same-timestamp authority defaults to `SAME_TIME_UNORDERED`; stronger ordering follows admitted temporal evidence.
+
+Allowed relation states:
 ```text
 BEFORE_CONFIRMED
 AFTER_CONFIRMED
@@ -158,68 +153,37 @@ ORDER_INDETERMINATE
 PROVENANCE_ORDER_ONLY
 ```
 
-Rules:
-- visible timestamp is the ordering evidence scope;
-- same timestamp does not admit internal order;
-- source row index is provenance order only;
-- missing or ambiguous order remains indeterminate;
-- relation records cannot create action volume, sequence truth or possession truth;
-- directly-later time does not establish causal/directly-follows football truth.
-
-## SURFACE / COUNT RULES
-CSV, TSV, XML, XLS/XLSX, JSON and JSONL are evidence surfaces.
-Surface rows are not canonical events.
-
-Use:
-`surface rows`, `visible rows`, `event-like rows`, `row-level evidence`, `event-row evidence`, `action-family volume`, `candidate count`.
-
-Do not infer:
-- missing value = zero;
-- missing column = absent behaviour;
-- same timestamp = duplicate event;
-- provider label = canonical event key;
-- CSV/XML mirror = independent actions;
-- XLSX aggregate row = timeline event.
-
-Until explicit later admission:
-`canonical_event_count=UNKNOWN`
-`true_action_count=UNKNOWN`
-
-## DUPLICATE / REFLECTION RULE
-Same SHA-256 at different paths is an exact duplicate reflection/lineage observation, not automatically a conflict.
-Duplicate/reflection lineage must not be counted twice as row/event/action/evidence volume or independent evidence votes.
-
-## IDENTITY RULE
-Provider fields, codes, aliases, team/player tokens and action labels begin as candidates.
-Identity is match-local unless a later explicit registry proves otherwise.
-Identity binding is not event truth.
-No raw surface row directly becomes an event instance.
-
 ## CLAIM SAFETY
-HPFA does not directly produce:
-pitch-control truth, body-orientation truth, coach intention, dominance truth, fatigue truth, off-ball truth, tactical truth, clean phase truth, complete event-stream truth, sequence truth, possession truth, causal truth or physical-action truth without the relevant later gate.
+Observation richness expands the **available evidence ceiling**; claim scope follows construct admission.
+There is no product-wide observation ceiling: observation and claim ceilings are construct-specific and surface-specific under ZFGV admission.
 
-Safe analyst language includes:
-- row-level evidence shows...
-- visible surface evidence indicates...
-- action-family volume suggests...
-- coordinate evidence is concentrated in...
-- match-local identity candidate...
-- sequence/rhythm candidate detected...
-- requires later validation...
+Physical-state and causal claim families use dedicated admission gates:
+- pitch-control models use admitted physical-state/spatiotemporal capability;
+- team-shape, formation, defensive-line and compactness constructs use admitted multi-entity physical-state observations;
+- off-ball run and passing-option constructs use admitted off-ball relational geometry;
+- body-orientation/scanning constructs use admitted orientation observations;
+- physical load/fatigue/speed constructs use admitted physical-motion/load observations;
+- pressure/closing geometry uses admitted physical interaction geometry;
+- coach-intention/tactical-plan constructs use dedicated intention evidence;
+- dominance and causal constructs use their declared estimand/evidence contracts.
 
-Blocked without later explicit admission:
-- the team intentionally...
-- the coach planned...
-- dominated...
-- controlled the pitch...
-- off-ball structure proves...
-- definitive tactical truth...
+A capability requiring true physical trajectories or off-ball state belongs to L8 / REQUIRES_TRACKING or REQUIRES_VIDEO.
+Capabilities supported by admitted temporal/spatial/relational/process/consequence observation at L2-L7 remain eligible under their HPFA-native construct names.
 
-## ANALYST LANGUAGE
-HPFA must not become a silent compliance system.
-Main analyst text should state what was observed, where it was observed, which evidence supports it and why it matters.
-Technical limitations and claim ceilings belong in a separate technical block.
+## ANALYST INTELLIGENCE
+The system should produce more than counts or narrative:
+observation → evidence grouping → context → episode → recurrence/change → alternative explanation → counterevidence → safe argument → report.
+
+Minimum product bridge:
+Evidence → Episode → Safe Finding → Analyst Report Block.
+
+Attention apparatus such as Match ECG may surface `ATTENTION_SIGNAL` / `FOCUS_CANDIDATE`. Finding authority follows drill-down into admitted evidence, counterevidence and claim composition.
+
+## METRIC / MODEL
+Product capability combines a formula/construct with admitted inputs, executable producer/consumer binding, tests and runtime evidence.
+Every metric/model must define construct, observation surface, required observation layers, required surface semantics, inputs/units, eligibility, prerequisites, denominator/exposure, leakage, validation, uncertainty, provenance/dependency, interpretation, claim ceiling and release state.
+
+`legacy_surface_compatibility` may remain as legacy metadata during migration; construct-specific observation admission is authoritative for capability scope.
 
 ## PHONE OUTPUT POLICY
 All user-visible Termux outputs must be written directly under:
@@ -229,51 +193,79 @@ All user-visible Termux outputs must be written directly under:
 Nested output is rejected with:
 `nested_phone_output_directory_rejected`
 
+Phone paths are discovered before use. `/sdcard` and `/storage/emulated/0` reflections share duplicate-detection/dependency binding.
+
 ## MATCH-AGNOSTIC RULE
-Product code must not hardcode match names, teams, dates, tournaments, sample IDs or sample row counts.
-Generic input metadata is allowed.
+Product code uses match/provider-agnostic identifiers and runtime-discovered teams, dates, tournaments, sample IDs and row counts.
 Required regression:
 `test_no_sample_match_identity_leak`
 
+## RED TEAM
+Every important capability must check:
+correlation→causation
+row order→chronology
+same timestamp→total order
+numeric field→semantic truth
+format/metric count→independent evidence
+pass network→team shape
+PPDA→pressing truth
+average position→formation truth
+probability→fact
+recurrence→coach intention
+absence→counterevidence
+donor PASS→product PASS
+rich observation→tracking truth
+
 ## RELEASE STATUS
-PASS is not release.
-CI SUCCESS is not ACTIVE_MATCH evidence.
-ACTIVE_MATCH_EVIDENCE_PASS is not PRODUCTION_RELEASE.
-MERGED is not PRODUCTION_RELEASE.
-A moved exact head invalidates its prior exact-head readiness/runtime evidence unless regenerated.
-Historical failed CI superseded by a newer green head is not a current blocker.
+Status authority:
+- PASS = test/contract acceptance.
+- CI SUCCESS = workflow evidence.
+- ACTIVE_MATCH_EVIDENCE_PASS = physical runtime acceptance.
+- MERGED = repository integration state.
+- PRODUCTION_RELEASE = explicit release-governance state.
 
-## CURRENT RELEASE STATE
-
+Release vocabulary:
 ```text
-main_authority_ref=refs/heads/main
-foundation_integrated=true
-evidence_spine_integrated=true
-reconstruction_integrated=true
-intelligence_correctness_integrated=true
-reconstruction_to_intelligence_runtime_bridge=true
-bridge_pr_head_active_match_evidence=ACTIVE_MATCH_EVIDENCE_PASS
-bridge_pr_head_status=REVIEW_REQUIRED
-merged_main_head_active_match_revalidated=false
+DISCOVERY_PASS_PLAN_ONLY
+POLICY_CORRECTION_PASS
+SPEC_ONLY
+SPEC_CORRECTION_ACCEPTED
+SMOKE_PASS
+REVIEW_REQUIRED
+FAIL_CLOSED
+WAITING_OPERATOR_SELECTION
+RELEASE_CANDIDATE_NOT_PRODUCTION_BOUND
+ACTIVE_MATCH_EVIDENCE_PASS
+PRODUCTION_RELEASE
+```
+
+## CURRENT DEVELOPMENT DIRECTION
+Prioritize migration of legacy single-surface gates into construct-specific observation-layer admission. Historical filename cleanup remains low priority; physical-state claim guards stay governed by dedicated capability contracts.
+
+Priority re-audit after the observation-model migration:
+1. temporal dynamics;
+2. spatial progression;
+3. relational reconstruction;
+4. visible opponent-response candidates;
+5. player-process participation;
+6. process-state dynamics;
+7. State Transition Dynamics;
+8. Match ECG / Attention Radar;
+9. recurrence/change/counterevidence integration;
+10. safe analyst finding projection.
+
+Every new work item must answer:
+“Mevcut evidence spine'ın hangi gerçek boşluğunu kapatıyor ve analiste hangi yeni savunulabilir bilgiyi kazandırıyor?”
+
+If there is no clear answer: `IDEA_POOL_ONLY / LATER / REJECT`.
+
+## DEFAULT LOCKS
+```text
 canonical_event_count=UNKNOWN
 true_action_count=UNKNOWN
 production_release=false
 ```
 
-Status:
-`BRIDGE_LANDED / PR_HEAD_ACTIVE_MATCH_EVIDENCE_PASS / REVIEW_REQUIRED_PRESERVED / MERGED_MAIN_ACTIVE_MATCH_REVALIDATION_REQUIRED / NOT_PRODUCTION`
-
-## NEXT PRODUCT ORDER
-1. Fresh ACTIVE_MATCH execution on the final current merged main head.
-2. Context Evidence Re-binding on the current Reconstruction/Intelligence spine.
-3. Analyst Episode Locator.
-4. Rhythm / Change Detection.
-5. Recurrence / Variation / Deviation.
-6. Counterevidence / falsifier reasoning enrichment and analyst-safe language.
-7. Metric Intelligence strengthening.
-8. Spatial / Progression Evidence integration.
-9. Relation Graph enrichment.
-10. Video / Visual Evidence bridge.
-11. Cross-match / player-team profiling after match-local foundations are stable.
-
-Pattern/recurrence intelligence must not precede context/episode grounding when doing so would manufacture meaning from unbound sequences.
+## PROJECT LANGUAGE AUTHORITY
+Human-readable HPFA surfaces follow `HPFA_POSITIVE_SCOPE_NARRATIVE_POLICY_V1.md`.
+Construct naming, authority roles, claim scope and evidence lineage carry epistemic boundaries; analyst prose presents the strongest supported football knowledge directly.

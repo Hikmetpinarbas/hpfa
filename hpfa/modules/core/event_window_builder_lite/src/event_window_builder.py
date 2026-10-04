@@ -37,9 +37,8 @@ def spine_runner_module(root):
 
 
 def minimum_context_module(root):
-    src = root / "hpfa" / "modules" / "core" / "minimum_viable_context_lite" / "src"
-    ensure_module_path(src)
-    import minimum_viable_context
+    from hpfa.modules.core.minimum_viable_context_lite.src import minimum_viable_context
+
     return minimum_viable_context
 
 
