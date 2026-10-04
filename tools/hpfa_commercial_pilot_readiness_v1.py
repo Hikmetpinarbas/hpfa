@@ -10,6 +10,8 @@ BUNDLE_POLICY_FILE = "release/release_bundle_policy_v1.json"
 EVIDENCE_FILES = {
     "physical": "physical_acceptance.json",
     "portability": "portability_acceptance.json",
+    "bundle": "bundle_integrity.json",
+    "installation": "installation_smoke.json",
     "human": "human_report_review.json",
     "red_team": "red_team_review.json",
 }
@@ -51,6 +53,26 @@ def audit(repo: Path, evidence_dir: Path, *, expected_head: str) -> dict[str, An
         or portability.get("production_release") is not False
     ):
         blockers.append("portability_acceptance_failed")
+
+    bundle = evidence["bundle"]
+    bundle_integrity_verified = (
+        bundle.get("bundle_status") == "PASS"
+        and bundle.get("deterministic_bundle") is True
+        and bundle.get("forbidden_entry_count") == 0
+        and bundle.get("raw_match_data_bundled") is False
+        and bundle.get("raw_donor_bundled") is False
+    )
+    if not bundle_integrity_verified:
+        blockers.append("bundle_integrity_failed")
+
+    installation = evidence["installation"]
+    isolated_installation_smoke_verified = (
+        installation.get("smoke_status") == "PASS"
+        and installation.get("isolated_environment") is True
+        and installation.get("base_runtime_dependency_count") == 0
+    )
+    if not isolated_installation_smoke_verified:
+        blockers.append("installation_smoke_failed")
 
     human = evidence["human"]
     if (
@@ -105,6 +127,8 @@ def audit(repo: Path, evidence_dir: Path, *, expected_head: str) -> dict[str, An
         "third_party_runtime_bundling_allowed": False,
         "customer_or_provider_authorized_match_data_required": True,
         "critical_blocker_count": critical_blocker_count,
+        "bundle_integrity_verified": bundle_integrity_verified,
+        "isolated_installation_smoke_verified": isolated_installation_smoke_verified,
         "blockers": blockers,
         "canonical_event_count": "UNKNOWN",
         "true_action_count": "UNKNOWN",
