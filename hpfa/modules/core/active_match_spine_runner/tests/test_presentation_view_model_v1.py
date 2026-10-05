@@ -409,3 +409,26 @@ def test_degraded_package_without_claim_contracts_explains_fail_closed_reason():
     assert "karşı" in row["why_tr"].casefold() or "bağlam" in row["why_tr"].casefold()
     assert row["creates_new_evidence"] is False
     assert row["can_authorize_emit"] is False
+
+
+def test_review_required_without_claim_contracts_still_explains_zero_output_without_inventing_reason():
+    view = build_presentation_view_model(
+        {"status": "REVIEW_REQUIRED"},
+        analyst_report_tr="",
+        analyst_report_en="",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload={
+            "status": "REVIEW_REQUIRED",
+            "analyst_output_contracts": [],
+            "source_bound_render_contracts": [],
+        },
+        safe_finding_payload={"safe_finding_admission_decisions": []},
+    )
+
+    assert view["unanswered_question_explanation_count"] == 1
+    row = view["unanswered_question_explanations"][0]
+    assert row["question_id"] == "report_level_zero_output"
+    assert row["epistemic_state"] == "REVIEW_REQUIRED"
+    assert row["why_tr"] == "Profesyonel bulgu üretilememesinin daha özel nedeni mevcut kanıttan güvenle çözülemiyor."
+    assert row["creates_new_evidence"] is False
+    assert row["can_authorize_emit"] is False

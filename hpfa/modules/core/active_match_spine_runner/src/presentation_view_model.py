@@ -407,6 +407,21 @@ def _unanswered_question_explanations(
             "can_authorize_emit": False,
         }]
 
+    if str(full_spine.get("status") or claim_payload.get("status") or "").upper() == "REVIEW_REQUIRED":
+        return [{
+            "question_id": "report_level_zero_output",
+            "question_tr": "Bu maç paketinden neden profesyonel bir futbol bulgusu üretilemedi?",
+            "epistemic_state": "REVIEW_REQUIRED",
+            "why_tr": "Profesyonel bulgu üretilememesinin daha özel nedeni mevcut kanıttan güvenle çözülemiyor.",
+            "source_reason_refs": review_hits,
+            "required_observation_tr": "Gerekli ek gözlem mevcut kanıttan güvenle belirlenemiyor.",
+            "weaker_safe_statement_tr": "Daha zayıf güvenli ifade mevcut kanıttan üretilemiyor.",
+            "analyst_action_tr": "Eksik veya çözülemeyen gözlem yüzeylerini incele; eksikliği başarısızlık veya karşı-kanıt olarak yorumlama.",
+            "claim_ceiling": "REVIEW_REQUIRED_NO_STRENGTHENING",
+            "creates_new_evidence": False,
+            "can_authorize_emit": False,
+        }]
+
     return records
 
 
