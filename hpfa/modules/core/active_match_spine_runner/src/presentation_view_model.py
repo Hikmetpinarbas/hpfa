@@ -229,6 +229,187 @@ def _match_local_descriptive_records(
         })
     return records
 
+
+_REASON_EXPLANATION_TR = {
+    "FOLLOWUP_OBSERVATION_UNRESOLVED_BURDEN": (
+        "Görünür sürecin takip eden sonucu yeterince çözülemediği için daha güçlü bir futbol sonucu söylenemiyor.",
+        "Takip eden görünür aksiyon ve sonuç bağlantısının daha eksiksiz çözülmesi gerekiyor.",
+        "Takip eden sekansları ve sonuç bağlantısını yeniden incele.",
+    ),
+    "RIGHT_CENSORED_OBSERVATION_BURDEN": (
+        "Gözlem penceresi sürecin devamını tam göstermediği için sonuç hakkında güçlü hüküm kurulamıyor.",
+        "Sekansın devamını kapsayan daha tam bir takip gözlemi gerekiyor.",
+        "Kesilmiş sekansların devamını ayrı incele.",
+    ),
+    "CONSEQUENCE_OBSERVATION_COVERAGE_UNRESOLVED": (
+        "Sürecin sonrasındaki görünür sonuç kapsaması yeterince çözülemediği için sonuç iddiası sınırlandırılıyor.",
+        "Sonuç penceresinin yeterli kapsama sahip olduğunun gösterilmesi gerekiyor.",
+        "Sonuç penceresi eksik olan sekansları ayırarak incele.",
+    ),
+    "DEPENDENCY_INDEPENDENCE_NOT_PROVEN": (
+        "Görülen örneklerin birbirinden bağımsız olduğu kanıtlanmadığı için tekrar gücü yükseltilemiyor.",
+        "Örnekler arasındaki bağımlılığı ve aynı olayın tekrar temsilini ayıran kimlik bilgisi gerekiyor.",
+        "Aynı gözlemin veya bağımlı örneklerin birden fazla destek gibi sayılmadığını kontrol et.",
+    ),
+    "VARIANT_FEATURE_CHALLENGE_DEPENDENCY_INDEPENDENCE_UNPROVEN": (
+        "Görülen örneklerin birbirinden bağımsız olduğu kanıtlanmadığı için tekrar gücü yükseltilemiyor.",
+        "Örnekler arasındaki bağımlılığı ayıran kimlik ve kaynak ilişkisi gerekiyor.",
+        "Bağımlı örnekleri tek destek olarak ele al ve bağımsızlık kanıtını kontrol et.",
+    ),
+    "VARIANT_FEATURE_CHALLENGE_STATISTICAL_INDEPENDENCE_UNPROVEN": (
+        "Örneklerin istatistiksel olarak bağımsız olduğu gösterilmediği için tekrar veya genelleme iddiası yapılamıyor.",
+        "Bağımsız observation unit tanımı ve bağımlılık kontrolü gerekiyor.",
+        "Bağımsızlık kanıtlanana kadar sonucu maç-içi betimleme düzeyinde tut.",
+    ),
+    "ELIGIBLE_DENOMINATOR_MEMBERSHIP_UNRESOLVED": (
+        "Hangi vakaların karşılaştırmaya gerçekten dahil olduğu çözülemediği için oran güvenle yorumlanamıyor.",
+        "Uygun vakaların paydasını açık ve izlenebilir biçimde belirlemek gerekiyor.",
+        "Paydayı oluşturan vakaları tek tek doğrula.",
+    ),
+    "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_SENSITIVE": (
+        "Gözlenen sonuç, kullanılan takip penceresine duyarlı olduğu için tek bir güçlü sonuç cümlesine indirgenemiyor.",
+        "Farklı makul takip pencerelerinde sonucun nasıl değiştiğini birlikte görmek gerekiyor.",
+        "5–8–12 saniyelik sonuç pencerelerini birlikte değerlendir.",
+    ),
+}
+
+_SAFE_MEANING_TR = {
+    "MATCH_LOCAL_OBSERVED_VISIBLE_VARIATION_ONLY": (
+        "Bu maçta yalnız görünür varyasyon güvenle söylenebilir; bunun taktik gerçek, neden veya bağımsız tekrar olduğu söylenemez."
+    ),
+    "MATCH_LOCAL_SHARED_ANCHOR_VISIBLE_OUTCOME_VARIATION_ONLY": (
+        "Bu maçta aynı görünür başlangıç bağlamından çıkan farklı sonuçlar betimlenebilir; neden veya gerçek başarı olasılığı çıkarılamaz."
+    ),
+}
+
+
+def _unanswered_question_explanations(
+    claim_payload: dict[str, Any],
+    safe_payload: dict[str, Any],
+    full_spine: dict[str, Any],
+) -> list[dict[str, Any]]:
+    admission_by_ref = {
+        str(row.get("source_safe_finding_handoff_ref") or ""): row
+        for row in safe_payload.get("safe_finding_admission_decisions") or []
+        if isinstance(row, dict)
+    }
+    records: list[dict[str, Any]] = []
+    for contract in claim_payload.get("analyst_output_contracts") or []:
+        if not isinstance(contract, dict):
+            continue
+        if contract.get("professional_emit_allowed") is True:
+            continue
+        contract_id = str(contract.get("analyst_output_contract_id") or "").strip()
+        source_ref = str(contract.get("source_safe_finding_handoff_ref") or "").strip()
+        admission = admission_by_ref.get(source_ref, {})
+        reasons = [
+            str(value).strip()
+            for value in (
+                admission.get("decision_reasons")
+                or contract.get("blocking_dimensions")
+                or []
+            )
+            if str(value).strip()
+        ]
+        mapped = next((_REASON_EXPLANATION_TR[r] for r in reasons if r in _REASON_EXPLANATION_TR), None)
+        if mapped:
+            why_tr, required_tr, action_tr = mapped
+        else:
+            why_tr = "Neden daha güçlü bir sonuca gidilemediği mevcut kanıttan güvenle çözülemiyor."
+            required_tr = "Gerekli ek gözlem mevcut kanıttan güvenle belirlenemiyor."
+            action_tr = "Ek analist aksiyonu mevcut kanıttan güvenle belirlenemiyor."
+
+        safe_key = str(
+            contract.get("render_safe_meaning")
+            or contract.get("safe_output_meaning")
+            or ""
+        ).strip()
+        weaker_tr = _SAFE_MEANING_TR.get(
+            safe_key,
+            "Daha zayıf güvenli ifade mevcut kanıttan üretilemiyor.",
+        )
+        source_action = str(contract.get("render_analyst_action") or "").strip()
+        if source_action:
+            action_tr = source_action
+
+        records.append({
+            "question_id": contract_id or source_ref or "UNKNOWN",
+            "question_tr": "Bu görünür örüntü profesyonel bir futbol bulgusu olarak söylenebilir mi?",
+            "epistemic_state": str(
+                contract.get("safe_finding_admission_decision")
+                or admission.get("decision")
+                or contract.get("evidence_sufficiency_state")
+                or "UNKNOWN"
+            ),
+            "why_tr": why_tr,
+            "source_reason_refs": reasons,
+            "required_observation_tr": required_tr,
+            "weaker_safe_statement_tr": weaker_tr,
+            "analyst_action_tr": action_tr,
+            "claim_ceiling": contract.get("claim_scope") or "INHERITS_UPSTREAM_NO_STRENGTHENING",
+            "creates_new_evidence": False,
+            "can_authorize_emit": False,
+        })
+    if records:
+        return records
+
+    hard_blocks = [
+        str(value).strip()
+        for value in (safe_payload.get("hard_block_hits") or [])
+        if str(value).strip()
+    ]
+    review_hits = [
+        str(value).strip()
+        for value in (full_spine.get("review_hits") or [])
+        if str(value).strip()
+    ]
+    if safe_payload.get("status") == "FAIL_CLOSED" or hard_blocks:
+        reasons = hard_blocks or review_hits
+        first = reasons[0] if reasons else ""
+        if first == "process_context_counterevidence_recompute_fail_closed":
+            why_tr = (
+                "Süreç bağlamı ile karşı-kanıt bağlantısı güvenle yeniden kurulamadığı için "
+                "HPFA profesyonel bulgu üretimini kapattı."
+            )
+            required_tr = (
+                "Süreç bağlamı, karşı-kanıt ve sonuç bağlantısının aynı uygun vakalar üzerinde "
+                "yeniden çözülebilmesi gerekiyor."
+            )
+            action_tr = (
+                "Bağlam ve karşı-kanıt bağlantısı çözülene kadar bu maçı profesyonel bulgu yerine "
+                "inceleme yüzeyi olarak kullan."
+            )
+        else:
+            why_tr = (
+                "HPFA'nın güvenli bulgu zinciri mevcut kanıtta kapalı kaldığı için "
+                "daha güçlü bir futbol cümlesi üretilmedi."
+            )
+            required_tr = (
+                "Kapanan aşamadaki eksik veya uyuşmayan gözlem/bağlantının çözülmesi gerekiyor."
+            )
+            action_tr = (
+                "İlk kapanan aşamayı ve ilgili gözlem bağlantısını yeniden incele; sonuç çözülmeden "
+                "profesyonel bulgu üretme."
+            )
+        return [{
+            "question_id": "PACKAGE_LEVEL_SAFE_FINDING_ADMISSION",
+            "question_tr": "Bu maç paketi profesyonel bir futbol bulgusu üretmeye yeterli mi?",
+            "epistemic_state": "FAIL_CLOSED",
+            "why_tr": why_tr,
+            "source_reason_refs": reasons,
+            "required_observation_tr": required_tr,
+            "weaker_safe_statement_tr": (
+                "Bu paket mevcut haliyle yalnız inceleme ve eksikliği teşhis etme amacıyla güvenle kullanılabilir."
+            ),
+            "analyst_action_tr": action_tr,
+            "claim_ceiling": "NO_PROFESSIONAL_FINDING_OUTPUT",
+            "creates_new_evidence": False,
+            "can_authorize_emit": False,
+        }]
+
+    return records
+
+
 def build_presentation_view_model(
     full_spine: dict[str, Any],
     *,
@@ -254,6 +435,11 @@ def build_presentation_view_model(
     professional_claims = _professional_claim_records(claim_payload)
     descriptive_findings = _match_local_descriptive_records(
         safe_finding_payload or {}, identity_payload or {}
+    )
+    unanswered_explanations = _unanswered_question_explanations(
+        claim_payload,
+        safe_finding_payload or {},
+        full_spine,
     )
 
     return {
@@ -283,6 +469,8 @@ def build_presentation_view_model(
             "fact_only_render_is_professional_finding": False,
         },
         "professional_claim_records": professional_claims,
+        "unanswered_question_explanations": unanswered_explanations,
+        "unanswered_question_explanation_count": len(unanswered_explanations),
         "match_local_descriptive_findings": descriptive_findings,
         "match_local_descriptive_finding_count": len(descriptive_findings),
         "fact_review_records": fact_records,
@@ -321,6 +509,10 @@ def render_professional_html(view_model: dict[str, Any], *, language: str = "tr"
     ]
     claim_summary = view_model.get("claim_admission_summary") or {}
     descriptive_findings = [row for row in view_model.get("match_local_descriptive_findings") or [] if isinstance(row, dict)]
+    unanswered_explanations = [
+        row for row in view_model.get("unanswered_question_explanations") or []
+        if isinstance(row, dict)
+    ]
 
     card_html: list[str] = []
     for card in cards:
@@ -376,6 +568,19 @@ def render_professional_html(view_model: dict[str, Any], *, language: str = "tr"
             + (f"<h4>Required qualifiers</h4><ul>{_list_html(qualifiers)}</ul>" if qualifiers else "")
             + "</details>"
         )
+
+    explanation_html = "".join(
+        "<article class=\"card\">"
+        f"<h3>{html.escape(str(row.get('question_tr') or 'Soru'))}</h3>"
+        f"<div class=\"meta\">Durum: {html.escape(str(row.get('epistemic_state') or 'UNKNOWN'))}</div>"
+        f"<p><strong>Neden?</strong> {html.escape(str(row.get('why_tr') or ''))}</p>"
+        f"<p><strong>Ne eksik?</strong> {html.escape(str(row.get('required_observation_tr') or ''))}</p>"
+        f"<p><strong>Güvenli olarak ne söyleyebiliriz?</strong> {html.escape(str(row.get('weaker_safe_statement_tr') or ''))}</p>"
+        f"<p><strong>Analist ne yapmalı?</strong> {html.escape(str(row.get('analyst_action_tr') or ''))}</p>"
+        "<div class=\"boundary-note\">Bu açıklama yeni evidence üretmez ve profesyonel bulgu izni vermez.</div>"
+        "</article>"
+        for row in unanswered_explanations
+    )
 
     descriptive_html = "".join(
         "<article class=\"card\">"
@@ -467,6 +672,12 @@ footer {{ margin-top: 38px; border-top: 1px solid #d7d7d2; padding-top: 16px; co
 <div class="kpi"><strong>{fact_n}</strong>Fact-only review records</div>
 </div>
 {professional_claim_html}
+</section>
+
+<section>
+<h2>HPFA neden daha fazlasını söylemiyor?</h2>
+<div class="boundary-note">Bu bölüm, HPFA'nın daha güçlü bir futbol cümlesine neden geçmediğini ve hangi gözlemin eksik olduğunu açıklar. Eksik kanıt başarısızlık veya karşı-kanıt sayılmaz.</div>
+<div class="grid">{explanation_html if explanation_html else '<article class="card">Bu raporda açıklanması gereken sınırlandırılmış soru yok.</article>'}</div>
 </section>
 
 <section>

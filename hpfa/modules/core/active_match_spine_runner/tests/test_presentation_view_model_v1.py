@@ -234,3 +234,178 @@ def test_match_local_descriptive_findings_are_deduplicated_and_rendered_without_
     assert "Maç-içi görünür mekanizma bulguları" in rendered
     assert "Trabzonspor" in rendered
     assert "taktik gerçek" in rendered
+
+def test_unanswered_question_explains_why_without_strengthening_claim():
+    claim_payload = {
+        "status": "REVIEW_REQUIRED",
+        "analyst_output_contract_count": 1,
+        "analyst_output_contracts": [{
+            "analyst_output_contract_id": "aoc_sfh_1",
+            "source_safe_finding_handoff_ref": "sfh_1",
+            "professional_emit_allowed": False,
+            "safe_finding_admission_decision": "DOWNGRADE",
+            "evidence_sufficiency_state": "PARTIAL",
+            "blocking_dimensions": ["FOLLOWUP_OBSERVATION_UNRESOLVED_BURDEN"],
+            "safe_output_meaning": "MATCH_LOCAL_OBSERVED_VISIBLE_VARIATION_ONLY",
+            "forbidden_claim_families": ["CAUSALITY"],
+        }],
+        "source_bound_render_contracts": [],
+    }
+    safe_payload = {
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_1",
+            "decision": "DOWNGRADE",
+            "decision_reasons": ["FOLLOWUP_OBSERVATION_UNRESOLVED_BURDEN"],
+            "claim_output_allowed": False,
+        }]
+    }
+
+    view = build_presentation_view_model(
+        {"status": "REVIEW_REQUIRED"},
+        analyst_report_tr="",
+        analyst_report_en="",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload=claim_payload,
+        safe_finding_payload=safe_payload,
+    )
+
+    assert view["unanswered_question_explanation_count"] == 1
+    row = view["unanswered_question_explanations"][0]
+    assert row["question_id"] == "aoc_sfh_1"
+    assert row["epistemic_state"] == "DOWNGRADE"
+    assert "takip" in row["why_tr"].casefold()
+    assert "takip" in row["required_observation_tr"].casefold()
+    assert row["weaker_safe_statement_tr"]
+    assert row["creates_new_evidence"] is False
+    assert row["can_authorize_emit"] is False
+
+
+def test_unknown_reason_is_not_invented_into_human_explanation():
+    claim_payload = {
+        "status": "REVIEW_REQUIRED",
+        "analyst_output_contracts": [{
+            "analyst_output_contract_id": "aoc_sfh_2",
+            "source_safe_finding_handoff_ref": "sfh_2",
+            "professional_emit_allowed": False,
+            "safe_finding_admission_decision": "ABSTAIN",
+            "evidence_sufficiency_state": "UNKNOWN",
+            "blocking_dimensions": [],
+            "safe_output_meaning": None,
+        }],
+        "source_bound_render_contracts": [],
+    }
+    safe_payload = {
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_2",
+            "decision": "ABSTAIN",
+            "decision_reasons": [],
+            "claim_output_allowed": False,
+        }]
+    }
+
+    view = build_presentation_view_model(
+        {"status": "REVIEW_REQUIRED"},
+        analyst_report_tr="",
+        analyst_report_en="",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload=claim_payload,
+        safe_finding_payload=safe_payload,
+    )
+
+    row = view["unanswered_question_explanations"][0]
+    assert row["why_tr"] == "Neden daha güçlü bir sonuca gidilemediği mevcut kanıttan güvenle çözülemiyor."
+    assert row["required_observation_tr"] == "Gerekli ek gözlem mevcut kanıttan güvenle belirlenemiyor."
+    assert row["weaker_safe_statement_tr"] == "Daha zayıf güvenli ifade mevcut kanıttan üretilemiyor."
+
+
+def test_professional_emit_contract_does_not_create_unanswered_question_explanation():
+    claim_payload = {
+        "status": "PASS",
+        "analyst_output_contracts": [{
+            "analyst_output_contract_id": "aoc_emit",
+            "source_safe_finding_handoff_ref": "sfh_emit",
+            "professional_emit_allowed": True,
+            "safe_finding_admission_decision": "EMIT",
+            "evidence_sufficiency_state": "SUFFICIENT",
+        }],
+        "source_bound_render_contracts": [],
+    }
+
+    view = build_presentation_view_model(
+        {"status": "PASS"},
+        analyst_report_tr="",
+        analyst_report_en="",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload=claim_payload,
+        safe_finding_payload={"safe_finding_admission_decisions": []},
+    )
+
+    assert view["unanswered_question_explanations"] == []
+    assert view["unanswered_question_explanation_count"] == 0
+
+
+def test_html_renders_football_first_why_section():
+    claim_payload = {
+        "status": "REVIEW_REQUIRED",
+        "analyst_output_contracts": [{
+            "analyst_output_contract_id": "aoc_sfh_3",
+            "source_safe_finding_handoff_ref": "sfh_3",
+            "professional_emit_allowed": False,
+            "safe_finding_admission_decision": "DOWNGRADE",
+            "evidence_sufficiency_state": "PARTIAL",
+            "blocking_dimensions": ["DEPENDENCY_INDEPENDENCE_NOT_PROVEN"],
+            "safe_output_meaning": "MATCH_LOCAL_OBSERVED_VISIBLE_VARIATION_ONLY",
+        }],
+        "source_bound_render_contracts": [],
+    }
+    safe_payload = {
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_3",
+            "decision": "DOWNGRADE",
+            "decision_reasons": ["DEPENDENCY_INDEPENDENCE_NOT_PROVEN"],
+            "claim_output_allowed": False,
+        }]
+    }
+    view = build_presentation_view_model(
+        {"status": "REVIEW_REQUIRED"},
+        analyst_report_tr="",
+        analyst_report_en="",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload=claim_payload,
+        safe_finding_payload=safe_payload,
+    )
+    rendered = render_professional_html(view, language="tr")
+
+    assert "HPFA neden daha fazlasını söylemiyor?" in rendered
+    assert "Ne eksik?" in rendered
+    assert "Güvenli olarak ne söyleyebiliriz?" in rendered
+    assert "Analist ne yapmalı?" in rendered
+
+
+def test_degraded_package_without_claim_contracts_explains_fail_closed_reason():
+    view = build_presentation_view_model(
+        {
+            "status": "REVIEW_REQUIRED",
+            "review_hits": ["variant_feature_challenge_runtime_binding_fail_closed"],
+        },
+        analyst_report_tr="",
+        analyst_report_en="",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload={
+            "status": "PASS",
+            "analyst_output_contracts": [],
+            "source_bound_render_contracts": [],
+        },
+        safe_finding_payload={
+            "status": "FAIL_CLOSED",
+            "hard_block_hits": ["process_context_counterevidence_recompute_fail_closed"],
+            "safe_finding_admission_decisions": [],
+        },
+    )
+
+    assert view["unanswered_question_explanation_count"] == 1
+    row = view["unanswered_question_explanations"][0]
+    assert row["epistemic_state"] == "FAIL_CLOSED"
+    assert "karşı" in row["why_tr"].casefold() or "bağlam" in row["why_tr"].casefold()
+    assert row["creates_new_evidence"] is False
+    assert row["can_authorize_emit"] is False
