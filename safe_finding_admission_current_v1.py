@@ -346,7 +346,7 @@ def _branch_preoutcome_context_enrichment(
             "context_is_pre_outcome_only": True,
             "outcome_used_in_context_enrichment": False,
             "consequence_used_in_context_enrichment": False,
-            "branch_comparison_context_complete": False,
+            "branch_comparison_context_complete": bool(game_state_unique and len(process_families) == 1),
             "context_enrichment_can_resolve_global_context_completeness": False,
             "creates_new_evidence": False,
             "creates_independent_support": False,
@@ -447,6 +447,102 @@ def _context_coverage_decomposition(
         "can_change_safe_finding_decision": False,
         "can_authorize_emit": False,
     }
+
+
+def reassess_match_local_descriptive_findings(admission_payload: dict) -> dict:
+    """Admit a bounded match-local descriptive finding without raising claim ceiling.
+
+    This does not convert DOWNGRADE to EMIT and does not prove statistical
+    independence, recurrence truth, causality, tactical truth, or generalization.
+    """
+    allowed_review_reasons = {
+        "CONTEXT_COVERAGE_PARTIAL_OR_UNKNOWN",
+        "DEPENDENCY_GROUP_BURDEN_UNRESOLVED",
+        "DEPENDENCY_INDEPENDENCE_NOT_PROVEN",
+        "INDEPENDENT_SUPPORT_NOT_ADMITTED",
+        "REFLECTION_DEPENDENCY_PRESENT_NO_INDEPENDENT_VOTE",
+        "REFLECTION_GROUP_BURDEN_UNRESOLVED",
+        "SHARED_ANCHOR_DEPENDENCY_BURDEN",
+        "STATISTICAL_INDEPENDENCE_NOT_PROVEN",
+        "VARIANT_FEATURE_CHALLENGE_DEPENDENCY_INDEPENDENCE_UNPROVEN",
+        "VARIANT_FEATURE_CHALLENGE_STATISTICAL_INDEPENDENCE_UNPROVEN",
+        "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_SENSITIVE",
+    }
+    admitted = 0
+    for row in admission_payload.get("safe_finding_admission_decisions") or []:
+        if not isinstance(row, dict):
+            continue
+        row["match_local_descriptive_finding_admitted"] = False
+        row["match_local_descriptive_finding_scope"] = None
+        row["statistical_generalization_allowed"] = False
+        row["causal_inference_allowed"] = False
+        row["tactical_truth_allowed"] = False
+        row["independent_recurrence_claim_allowed"] = False
+
+        if str(row.get("decision") or "").upper() != "DOWNGRADE":
+            continue
+        reasons = {
+            str(value).strip()
+            for value in (row.get("decision_reasons") or [])
+            if str(value).strip()
+        }
+        if reasons - allowed_review_reasons:
+            continue
+        if int(row.get("unresolved_outcome_case_count") or 0) != 0:
+            continue
+        eligible = int(row.get("eligible_denominator") or 0)
+        resolved = int(row.get("resolved_outcome_case_count") or 0)
+        if eligible < 2 or resolved != eligible:
+            continue
+        if int(row.get("actor_spread_count") or 0) < 2:
+            continue
+        if row.get("single_actor_concentration") is True:
+            continue
+        if row.get("typed_defeat_target_unresolved") is True:
+            continue
+        if row.get("variant_feature_challenge_binding_state") != "MATCHED_CHALLENGE_VISIBLE":
+            continue
+        if row.get("variant_feature_challenge_coverage_partial") is True:
+            continue
+        if row.get("variant_support_multi_occurrence_disjoint_cluster_visible") is not True:
+            continue
+        if row.get("variant_support_multi_episode_spread_visible") is not True:
+            continue
+        if int(row.get("variant_support_episode_spread_max_visible_count") or 0) < 2:
+            continue
+        context = row.get("branch_preoutcome_context_enrichment") or {}
+        if context.get("branch_comparison_context_complete") is not True:
+            continue
+
+        profiles = [
+            profile
+            for profile in (row.get("variant_support_spread_profiles") or [])
+            if isinstance(profile, dict)
+        ]
+        if not any(
+            int(profile.get("occurrence_disjoint_support_cluster_count") or 0) >= 2
+            and int(profile.get("visible_episode_spread_count") or 0) >= 2
+            and int(profile.get("success_visible_episode_spread_count") or 0) >= 1
+            and int(profile.get("failure_visible_episode_spread_count") or 0) >= 1
+            for profile in profiles
+        ):
+            continue
+
+        row["match_local_descriptive_finding_admitted"] = True
+        row["match_local_descriptive_finding_scope"] = (
+            "MATCH_LOCAL_OBSERVED_MECHANISM_FINDING_ONLY"
+        )
+        row["match_local_descriptive_finding_basis"] = (
+            "MULTI_EPISODE_OCCURRENCE_DISJOINT_SUCCESS_FAILURE_VARIATION_WITH_CONTEXT"
+        )
+        admitted += 1
+
+    admission_payload["match_local_descriptive_finding_admitted_count"] = admitted
+    admission_payload["match_local_descriptive_findings_raise_claim_ceiling"] = False
+    admission_payload["match_local_descriptive_findings_are_statistical_generalizations"] = False
+    admission_payload["match_local_descriptive_findings_are_tactical_truth"] = False
+    admission_payload["match_local_descriptive_findings_are_causal_truth"] = False
+    return admission_payload
 
 
 def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dict:
@@ -639,6 +735,7 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
         result,
         branch_preoutcome_context_enrichment,
     )
+    result = reassess_match_local_descriptive_findings(result)
 
     if source_payload:
         if rich_multiformat_payload:
