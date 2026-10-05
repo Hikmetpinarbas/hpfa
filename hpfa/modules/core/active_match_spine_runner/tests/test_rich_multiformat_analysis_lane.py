@@ -1321,6 +1321,15 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
         "actor_location_is_average_position_truth": False,
         "actor_location_is_tracking_truth": False,
     }]
+    family_location = result["team_process_profiles"][0]["visible_actor_location_participation_profile"]
+    assert family_location["actor_location_observable_process_n"] == 1
+    assert family_location["eligible_location_temporal_layer_n"] == 1
+    assert family_location["pass_only_temporal_layer_excluded_n"] == 1
+    assert family_location["actor_process_presence_counts"] == {"actor_2": 1}
+    assert family_location["actor_anchor_observation_counts"] == {"actor_2": 1}
+    assert family_location["coordinate_is_average_position_truth"] is False
+    assert family_location["coordinate_is_tracking_truth"] is False
+    assert family_location["profile_creates_independent_support"] is False
     assert signature["process_start_zone_candidates"] == ["MIDDLE_THIRD"]
     assert signature["process_end_zone_candidates"] == ["FINAL_THIRD"]
     assert signature["zone_layer_path_candidates"] == [["MIDDLE_THIRD"], ["FINAL_THIRD"]]
@@ -1801,6 +1810,87 @@ def test_c03_variant_profiles_never_pool_opponent_teams() -> None:
     assert {row["team_identity_candidate_id"] for row in profiles} == {"A", "B"}
     assert all(row["eligible_process_n"] == 2 for row in profiles)
     assert all(row["cross_team_variant_pooling_allowed"] is False for row in profiles)
+
+
+def test_c03_variant_context_keeps_actor_location_descriptive_and_out_of_causality() -> None:
+    processes = {
+        "process_participation_candidates": [
+            {
+                "process_participation_candidate_id": "shot_ctx",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "BUILD_UP",
+                "team_identity_candidate_id": "A",
+                "period_candidate": "1",
+                "start_candidate": 10.0,
+                "end_candidate": 15.0,
+                "shot_present_annotation_candidate": True,
+            },
+            {
+                "process_participation_candidate_id": "nonshot_ctx",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "BUILD_UP",
+                "team_identity_candidate_id": "A",
+                "period_candidate": "1",
+                "start_candidate": 20.0,
+                "end_candidate": 25.0,
+                "shot_present_annotation_candidate": False,
+            },
+        ]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "shot_occ",
+                "team_identity_candidate_ids": ["A"],
+                "period_candidates": ["1"],
+                "start_candidates": [12.0],
+                "action_family_candidates": ["CARRY"],
+                "actor_identity_candidate_ids": ["actor_shot"],
+                "supporting_spatial_transition_candidate_ids": ["shot_sp"],
+            },
+            {
+                "action_occurrence_candidate_id": "nonshot_occ",
+                "team_identity_candidate_ids": ["A"],
+                "period_candidates": ["1"],
+                "start_candidates": [22.0],
+                "action_family_candidates": ["DRIBBLE"],
+                "actor_identity_candidate_ids": ["actor_nonshot"],
+                "supporting_spatial_transition_candidate_ids": ["nonshot_sp"],
+            },
+        ]
+    }
+    spatial = {
+        "spatial_transition_candidates": [
+            {
+                "spatial_transition_candidate_id": "shot_sp",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 82.0,
+                "provider_coordinate_anchor_y_candidate": 34.0,
+                "provider_zone_candidates": ["FINAL_THIRD"],
+            },
+            {
+                "spatial_transition_candidate_id": "nonshot_sp",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 35.0,
+                "provider_coordinate_anchor_y_candidate": 25.0,
+                "provider_zone_candidates": ["MIDDLE_THIRD"],
+            },
+        ]
+    }
+    result = _construct_c03(processes, occurrences, spatial)
+    profile = result["variant_context_profiles"][0]
+    shot = profile["shot_ending_actor_location_context"]
+    nonshot = profile["non_shot_actor_location_context"]
+
+    assert shot["eligible_location_temporal_layer_n"] == 1
+    assert shot["actor_process_presence_counts"] == {"actor_shot": 1}
+    assert shot["provider_zone_layer_counts"] == {"FINAL_THIRD": 1}
+    assert nonshot["eligible_location_temporal_layer_n"] == 1
+    assert nonshot["actor_process_presence_counts"] == {"actor_nonshot": 1}
+    assert nonshot["provider_zone_layer_counts"] == {"MIDDLE_THIRD": 1}
+    assert profile["actor_location_context_participates_in_variant_identity"] is False
+    assert profile["actor_location_difference_is_causal_truth"] is False
+    assert profile["actor_location_difference_is_tactical_mechanism_truth"] is False
 
 
 def test_c03_preserves_full_occurrence_pool_across_multiple_processes():

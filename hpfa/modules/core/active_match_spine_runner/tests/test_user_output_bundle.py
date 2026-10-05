@@ -747,6 +747,16 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
                                 "NO_VISIBLE_FOLLOW_UP_CANDIDATE": 1,
                             }
                         },
+                        "visible_actor_location_participation_profile": {
+                            "actor_location_observable_process_n": 6,
+                            "eligible_location_temporal_layer_n": 9,
+                            "pass_only_temporal_layer_excluded_n": 21,
+                            "actor_process_presence_counts": {"actor_1": 4},
+                            "provider_zone_layer_counts": {"FINAL_THIRD": 5, "MIDDLE_THIRD": 4},
+                            "coordinate_is_average_position_truth": False,
+                            "coordinate_is_tracking_truth": False,
+                            "pass_coordinate_used_as_actor_location": False,
+                        },
                     }
                 ]
             }
@@ -768,6 +778,11 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     assert "Okuma çerçevesi" in text
     assert "follow-up durumlarının" in text
     assert "same-time review" in text
+    assert "6 süreçte actor-location gözlemi" in text
+    assert "9 admitted actor-location katmanı" in text
+    assert "21 PASS-only katman konum hesabından dışlandı" in text
+    assert "ortalama pozisyon" not in text.lower()
+    assert "tracking konumu" not in text.lower()
 
 
 

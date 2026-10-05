@@ -786,6 +786,9 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 "opponent_takeover_after_breakdown": 0,
                 "mixed_team_same_time_review": 0,
                 "no_visible_followup": 0,
+                "actor_location_process": 0,
+                "actor_location_layers": 0,
+                "pass_only_location_excluded": 0,
             },
         )
         bucket["eligible"] += int(row.get("eligible_process_n") or 0)
@@ -806,6 +809,11 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
             presence.get("MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE") or 0
         )
         bucket["no_visible_followup"] += int(presence.get("NO_VISIBLE_FOLLOW_UP_CANDIDATE") or 0)
+        actor_location = row.get("visible_actor_location_participation_profile")
+        if isinstance(actor_location, dict):
+            bucket["actor_location_process"] += int(actor_location.get("actor_location_observable_process_n") or 0)
+            bucket["actor_location_layers"] += int(actor_location.get("eligible_location_temporal_layer_n") or 0)
+            bucket["pass_only_location_excluded"] += int(actor_location.get("pass_only_temporal_layer_excluded_n") or 0)
     cards: list[str] = []
     for team_id, values in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
         name = teams.get(team_id, team_id)
@@ -817,12 +825,16 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 f"Görünür devam/sonuç yüzeyinde {values['opponent_handover']} süreçte rakibe geçiş, "
                 f"{values['opponent_takeover_after_breakdown']} süreçte breakdown sonrası rakip takeover, "
                 f"{values['mixed_team_same_time_review']} süreçte aynı-zamanlı iki takım belirsizliği ve "
-                f"{values['no_visible_followup']} süreçte görünür follow-up yokluğu kaydedildi."
+                f"{values['no_visible_followup']} süreçte görünür follow-up yokluğu kaydedildi. "
+                f"Konum katılım yüzeyinde {values['actor_location_process']} süreçte actor-location gözlemi, "
+                f"{values['actor_location_layers']} admitted actor-location katmanı görüldü; "
+                f"{values['pass_only_location_excluded']} PASS-only katman konum hesabından dışlandı."
             )
             evidence = (
                 "Okuma çerçevesi: Aynı süreçte birden fazla consequence-response kategorisi birlikte yer alabilir. "
                 "Bu yüzey rakibe geçiş, breakdown sonrası takeover, same-time review ve follow-up durumlarının "
-                "maç-içi süreç kompozisyonunu gösterir."
+                "maç-içi süreç kompozisyonunu gösterir. Actor-location yüzeyi yalnız admitted on-ball/interaction "
+                "konum katılımını betimler; takım şekli, off-ball geometri veya oyuncunun gerçek fiziksel konumu değildir."
             )
         else:
             football = (
@@ -832,12 +844,16 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 f"On the visible consequence-response surface, {values['opponent_handover']} processes contained an opponent handover, "
                 f"{values['opponent_takeover_after_breakdown']} an opponent takeover after breakdown, "
                 f"{values['mixed_team_same_time_review']} a mixed-team same-time review state, and "
-                f"{values['no_visible_followup']} no visible follow-up."
+                f"{values['no_visible_followup']} no visible follow-up. "
+                f"On the location-participation surface, {values['actor_location_process']} processes contained actor-location observations, "
+                f"covering {values['actor_location_layers']} admitted actor-location layers; "
+                f"{values['pass_only_location_excluded']} PASS-only layers were excluded from location calculation."
             )
             evidence = (
                 "Reading frame: multiple consequence-response categories may coexist within the same process. "
                 "This surface describes the match-local process composition of opponent handover, takeover after breakdown, "
-                "same-time review, and follow-up states."
+                "same-time review, and follow-up states. The actor-location surface describes admitted on-ball/interaction "
+                "location participation only; it is not team shape, off-ball geometry, or physical player-location truth."
             )
         cards.extend([football, evidence])
     return cards

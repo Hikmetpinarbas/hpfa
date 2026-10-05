@@ -3786,6 +3786,55 @@ def _construct_c03(
                     "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_MORPHOLOGY_NEIGHBOR_CANDIDATE_ONLY",
                 })
 
+    def _aggregate_actor_location_context(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        actor_process_presence_counts: Counter[str] = Counter()
+        actor_anchor_observation_counts: Counter[str] = Counter()
+        zone_layer_counts: Counter[str] = Counter()
+        observable_process_n = 0
+        eligible_layer_n = 0
+        pass_only_excluded_n = 0
+        for row in rows:
+            proxy = row.get("visible_actor_location_participation_proxy") or {}
+            row_eligible = int(proxy.get("eligible_temporal_layer_n") or 0)
+            eligible_layer_n += row_eligible
+            pass_only_excluded_n += int(proxy.get("pass_only_temporal_layer_excluded_n") or 0)
+            profiles = [item for item in (proxy.get("profiles") or []) if isinstance(item, dict)]
+            if row_eligible > 0 and profiles:
+                observable_process_n += 1
+            seen_actors: set[str] = set()
+            for profile in profiles:
+                actor_id = str(profile.get("actor_identity_candidate_id") or "").strip()
+                if not actor_id:
+                    continue
+                if actor_id not in seen_actors:
+                    actor_process_presence_counts[actor_id] += 1
+                    seen_actors.add(actor_id)
+                actor_anchor_observation_counts[actor_id] += int(profile.get("anchor_observation_n") or 0)
+                for zone, count in (profile.get("provider_zone_layer_counts") or {}).items():
+                    zone_layer_counts[str(zone)] += int(count or 0)
+        eligible_process_n = len(rows)
+        return {
+            "eligible_process_n": eligible_process_n,
+            "actor_location_observable_process_n": observable_process_n,
+            "actor_location_observation_coverage_rate": (
+                observable_process_n / eligible_process_n if eligible_process_n else None
+            ),
+            "eligible_location_temporal_layer_n": eligible_layer_n,
+            "pass_only_temporal_layer_excluded_n": pass_only_excluded_n,
+            "actor_process_presence_counts": dict(sorted(actor_process_presence_counts.items())),
+            "actor_anchor_observation_counts": dict(sorted(actor_anchor_observation_counts.items())),
+            "provider_zone_layer_counts": dict(sorted(zone_layer_counts.items())),
+            "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
+            "actor_process_presence_is_action_volume_truth": False,
+            "coordinate_is_average_position_truth": False,
+            "coordinate_is_tracking_truth": False,
+            "pass_coordinate_used_as_actor_location": False,
+            "profile_creates_independent_support": False,
+            "profile_is_team_shape_truth": False,
+            "profile_is_off_ball_location_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_ACTOR_LOCATION_PARTICIPATION_PROFILE_ONLY",
+        }
+
     team_process_profiles: list[dict[str, Any]] = []
     by_team_family: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for signature in signatures:
@@ -3854,6 +3903,7 @@ def _construct_c03(
             "visible_recovery_process_n": recovery_n,
             "visible_recovery_share_candidate": recovery_n / len(team_rows),
             "visible_consequence_response_profile": visible_consequence_response_profile,
+            "visible_actor_location_participation_profile": _aggregate_actor_location_context(team_rows),
             "mean_actor_spread_candidate": (sum(actor_values) / len(actor_values)) if actor_values else None,
             "mean_temporal_layer_n": (sum(layer_values) / len(layer_values)) if layer_values else None,
             "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
@@ -4065,6 +4115,11 @@ def _construct_c03(
             "non_shot_visible_loss_n": sum(bool(row.get("visible_loss_transition_candidate_present")) for row in non_shot_rows),
             "shot_ending_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in shot_rows),
             "non_shot_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in non_shot_rows),
+            "shot_ending_actor_location_context": _aggregate_actor_location_context(shot_rows),
+            "non_shot_actor_location_context": _aggregate_actor_location_context(non_shot_rows),
+            "actor_location_context_participates_in_variant_identity": False,
+            "actor_location_difference_is_causal_truth": False,
+            "actor_location_difference_is_tactical_mechanism_truth": False,
             "comparison_basis": "SAME_TEAM_SAME_PROCESS_FAMILY_SHOT_ENDING_VS_NON_SHOT_VISIBLE_VARIANTS",
             "cross_team_variant_pooling_allowed": False,
             "comparison_is_descriptive_not_causal": True,
