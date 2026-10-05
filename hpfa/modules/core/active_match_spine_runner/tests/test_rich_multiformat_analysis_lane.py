@@ -1327,6 +1327,16 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
     assert family_location["pass_only_temporal_layer_excluded_n"] == 1
     assert family_location["actor_process_presence_counts"] == {"actor_2": 1}
     assert family_location["actor_anchor_observation_counts"] == {"actor_2": 1}
+    assert family_location["actor_location_actor_profiles"] == [{
+        "actor_identity_candidate_id": "actor_2",
+        "visible_process_presence_n": 1,
+        "visible_process_presence_rate_among_location_observable_processes": 1.0,
+        "anchor_observation_n": 1,
+        "visible_process_spread_is_recurrence_truth": False,
+        "visible_process_spread_is_independent_support": False,
+        "visible_process_spread_is_stable_role_truth": False,
+        "visible_process_spread_is_player_importance_truth": False,
+    }]
     assert family_location["coordinate_is_average_position_truth"] is False
     assert family_location["coordinate_is_tracking_truth"] is False
     assert family_location["profile_creates_independent_support"] is False

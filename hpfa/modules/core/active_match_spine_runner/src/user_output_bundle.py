@@ -770,7 +770,8 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
     if not profiles:
         return []
     teams = _human_team_labels(identity)
-    by_team: dict[str, dict[str, int]] = {}
+    actors = _human_admitted_actor_labels(identity)
+    by_team: dict[str, dict[str, Any]] = {}
     for row in profiles:
         team_id = str(row.get("team_identity_candidate_id") or "").strip()
         if not team_id:
@@ -789,6 +790,8 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 "actor_location_process": 0,
                 "actor_location_layers": 0,
                 "pass_only_location_excluded": 0,
+                "actor_location_actor_presence": {},
+                "actor_location_actor_anchor_observations": {},
             },
         )
         bucket["eligible"] += int(row.get("eligible_process_n") or 0)
@@ -814,10 +817,44 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
             bucket["actor_location_process"] += int(actor_location.get("actor_location_observable_process_n") or 0)
             bucket["actor_location_layers"] += int(actor_location.get("eligible_location_temporal_layer_n") or 0)
             bucket["pass_only_location_excluded"] += int(actor_location.get("pass_only_temporal_layer_excluded_n") or 0)
+            for actor_profile in actor_location.get("actor_location_actor_profiles") or []:
+                if not isinstance(actor_profile, dict):
+                    continue
+                actor_id = str(actor_profile.get("actor_identity_candidate_id") or "").strip()
+                if not actor_id:
+                    continue
+                bucket["actor_location_actor_presence"][actor_id] = (
+                    int(bucket["actor_location_actor_presence"].get(actor_id) or 0)
+                    + int(actor_profile.get("visible_process_presence_n") or 0)
+                )
+                bucket["actor_location_actor_anchor_observations"][actor_id] = (
+                    int(bucket["actor_location_actor_anchor_observations"].get(actor_id) or 0)
+                    + int(actor_profile.get("anchor_observation_n") or 0)
+                )
     cards: list[str] = []
     for team_id, values in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
         name = teams.get(team_id, team_id)
+        actor_location_candidates = [
+            (
+                int(presence_n or 0),
+                int(values["actor_location_actor_anchor_observations"].get(actor_id) or 0),
+                actors.get(actor_id),
+            )
+            for actor_id, presence_n in values["actor_location_actor_presence"].items()
+            if actors.get(actor_id)
+        ]
+        actor_location_candidates.sort(key=lambda item: (-item[0], -item[1], str(item[2])))
+        top_actor_location = actor_location_candidates[0] if actor_location_candidates else None
         if language == "tr":
+            actor_location_sentence = (
+                (
+                    f" Kimliği admitted olan {top_actor_location[2]} "
+                    f"{top_actor_location[0]} görünür süreçte actor-location katılımı verdi; "
+                    f"bu yüzeyde {top_actor_location[1]} anchor gözlemi var."
+                )
+                if top_actor_location
+                else ""
+            )
             football = (
                 f"{name}: Sistem bu maçta {values['eligible']} görünür oyun sürecini takım bağlamına bağlayabildi. "
                 f"Bunların {values['loss']} tanesinde top kaybı, {values['recovery']} tanesinde top kazanımı ve "
@@ -829,6 +866,7 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 f"Konum katılım yüzeyinde {values['actor_location_process']} süreçte actor-location gözlemi, "
                 f"{values['actor_location_layers']} admitted actor-location katmanı görüldü; "
                 f"{values['pass_only_location_excluded']} PASS-only katman konum hesabından dışlandı."
+                f"{actor_location_sentence}"
             )
             evidence = (
                 "Okuma çerçevesi: Aynı süreçte birden fazla consequence-response kategorisi birlikte yer alabilir. "
@@ -837,6 +875,14 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 "konum katılımını betimler; takım şekli, off-ball geometri ve fiziksel oyuncu konumu bu yüzeyin claim kapsamı dışındadır."
             )
         else:
+            actor_location_sentence = (
+                (
+                    f" Admitted identity {top_actor_location[2]} appeared in actor-location participation across "
+                    f"{top_actor_location[0]} visible processes with {top_actor_location[1]} anchor observations."
+                )
+                if top_actor_location
+                else ""
+            )
             football = (
                 f"{name}: The system linked {values['eligible']} visible match processes to this team. "
                 f"A visible loss occurred in {values['loss']}, a recovery in {values['recovery']}, and "
@@ -848,6 +894,7 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 f"On the location-participation surface, {values['actor_location_process']} processes contained actor-location observations, "
                 f"covering {values['actor_location_layers']} admitted actor-location layers; "
                 f"{values['pass_only_location_excluded']} PASS-only layers were excluded from location calculation."
+                f"{actor_location_sentence}"
             )
             evidence = (
                 "Reading frame: multiple consequence-response categories may coexist within the same process. "

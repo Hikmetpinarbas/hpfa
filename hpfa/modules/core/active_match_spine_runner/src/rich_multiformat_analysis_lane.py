@@ -3813,6 +3813,21 @@ def _construct_c03(
                 for zone, count in (profile.get("provider_zone_layer_counts") or {}).items():
                     zone_layer_counts[str(zone)] += int(count or 0)
         eligible_process_n = len(rows)
+        actor_location_actor_profiles = []
+        for actor_id in sorted(actor_process_presence_counts):
+            presence_n = int(actor_process_presence_counts[actor_id])
+            actor_location_actor_profiles.append({
+                "actor_identity_candidate_id": actor_id,
+                "visible_process_presence_n": presence_n,
+                "visible_process_presence_rate_among_location_observable_processes": (
+                    presence_n / observable_process_n if observable_process_n else None
+                ),
+                "anchor_observation_n": int(actor_anchor_observation_counts.get(actor_id) or 0),
+                "visible_process_spread_is_recurrence_truth": False,
+                "visible_process_spread_is_independent_support": False,
+                "visible_process_spread_is_stable_role_truth": False,
+                "visible_process_spread_is_player_importance_truth": False,
+            })
         return {
             "eligible_process_n": eligible_process_n,
             "actor_location_observable_process_n": observable_process_n,
@@ -3823,6 +3838,7 @@ def _construct_c03(
             "pass_only_temporal_layer_excluded_n": pass_only_excluded_n,
             "actor_process_presence_counts": dict(sorted(actor_process_presence_counts.items())),
             "actor_anchor_observation_counts": dict(sorted(actor_anchor_observation_counts.items())),
+            "actor_location_actor_profiles": actor_location_actor_profiles,
             "provider_zone_layer_counts": dict(sorted(zone_layer_counts.items())),
             "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
             "actor_process_presence_is_action_volume_truth": False,

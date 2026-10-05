@@ -752,6 +752,17 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
                             "eligible_location_temporal_layer_n": 9,
                             "pass_only_temporal_layer_excluded_n": 21,
                             "actor_process_presence_counts": {"actor_1": 4},
+                            "actor_anchor_observation_counts": {"actor_1": 6},
+                            "actor_location_actor_profiles": [{
+                                "actor_identity_candidate_id": "actor_1",
+                                "visible_process_presence_n": 4,
+                                "visible_process_presence_rate_among_location_observable_processes": 4 / 6,
+                                "anchor_observation_n": 6,
+                                "visible_process_spread_is_recurrence_truth": False,
+                                "visible_process_spread_is_independent_support": False,
+                                "visible_process_spread_is_stable_role_truth": False,
+                                "visible_process_spread_is_player_importance_truth": False,
+                            }],
                             "provider_zone_layer_counts": {"FINAL_THIRD": 5, "MIDDLE_THIRD": 4},
                             "coordinate_is_average_position_truth": False,
                             "coordinate_is_tracking_truth": False,
@@ -765,7 +776,13 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     identity = {
         "team_identity_candidates": [
             {"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"},
-        ]
+        ],
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_aliases_raw": ["Player One"],
+            "validated_player_identity": True,
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+        }],
     }
     cards = user_output_bundle._human_team_process_cards(rich, identity, "tr")
     text = "\n".join(cards)
@@ -781,6 +798,9 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     assert "6 süreçte actor-location gözlemi" in text
     assert "9 admitted actor-location katmanı" in text
     assert "21 PASS-only katman konum hesabından dışlandı" in text
+    assert "Player One 4 görünür süreçte actor-location katılımı verdi" in text
+    assert "6 anchor gözlemi" in text
+    assert "kalıcı rol" not in text.lower()
     assert "ortalama pozisyon" not in text.lower()
     assert "tracking konumu" not in text.lower()
 
