@@ -171,7 +171,7 @@ def test_context_decomposition_distinguishes_rich_context_from_branch_completene
     assert result["can_authorize_emit"] is False
 
 
-def test_preoutcome_branch_context_enrichment_binds_game_state_and_provider_process_without_completeness_promotion():
+def test_preoutcome_branch_context_enrichment_marks_branch_context_complete_without_global_claim_promotion():
     source = {
         "anchor_centered_sequence_branch_maps": [{
             "comparable_set_id": "bcs_1",
@@ -224,7 +224,8 @@ def test_preoutcome_branch_context_enrichment_binds_game_state_and_provider_proc
     assert profile["context_is_pre_outcome_only"] is True
     assert profile["outcome_used_in_context_enrichment"] is False
     assert profile["consequence_used_in_context_enrichment"] is False
-    assert profile["branch_comparison_context_complete"] is False
+    assert profile["branch_comparison_context_complete"] is True
+    assert profile["context_enrichment_can_resolve_global_context_completeness"] is False
     assert profile["creates_independent_support"] is False
     assert profile["can_change_safe_finding_decision"] is False
     assert profile["can_authorize_emit"] is False
