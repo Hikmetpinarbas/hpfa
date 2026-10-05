@@ -152,6 +152,7 @@ def test_variant_delta_carries_admitted_followup_horizon_sensitivity() -> None:
     )
     row = result["grammar_stable_variant_feature_delta_records"][0]
     assert row["admitted_followup_horizon_sensitivity_surface_consumed"] is True
+    assert row["consequence_horizon_sensitivity_tested"] is True
     assert row["admitted_followup_horizon_sensitivity_tested"] is True
     assert row["admitted_followup_horizon_sensitive_variant_count"] == 1
     assert row["admitted_followup_horizon_sensitivity_incomplete_variant_count"] == 0
@@ -251,6 +252,7 @@ def test_safe_finding_emit_is_lowered_by_horizon_sensitive_challenge_even_when_o
     row = out["safe_finding_admission_decisions"][0]
     assert row["decision"] == "DOWNGRADE"
     assert row["claim_output_allowed"] is False
-    assert "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_UNRESOLVED" in row["decision_reasons"]
+    assert "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_SENSITIVE" in row["decision_reasons"]
+    assert "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_UNRESOLVED" not in row["decision_reasons"]
     assert out["professional_finding_emitted_count"] == 0
     assert out["unresolved_consequence_horizon_can_authorize_emit"] is False
