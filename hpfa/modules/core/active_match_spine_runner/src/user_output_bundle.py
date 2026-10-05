@@ -833,8 +833,8 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
             evidence = (
                 "Okuma çerçevesi: Aynı süreçte birden fazla consequence-response kategorisi birlikte yer alabilir. "
                 "Bu yüzey rakibe geçiş, breakdown sonrası takeover, same-time review ve follow-up durumlarının "
-                "maç-içi süreç kompozisyonunu gösterir. Actor-location yüzeyi yalnız admitted on-ball/interaction "
-                "konum katılımını betimler; takım şekli, off-ball geometri veya oyuncunun gerçek fiziksel konumu değildir."
+                "maç-içi süreç kompozisyonunu gösterir. Actor-location yüzeyi admitted on-ball/interaction "
+                "konum katılımını betimler; takım şekli, off-ball geometri ve fiziksel oyuncu konumu bu yüzeyin claim kapsamı dışındadır."
             )
         else:
             football = (
@@ -852,8 +852,8 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
             evidence = (
                 "Reading frame: multiple consequence-response categories may coexist within the same process. "
                 "This surface describes the match-local process composition of opponent handover, takeover after breakdown, "
-                "same-time review, and follow-up states. The actor-location surface describes admitted on-ball/interaction "
-                "location participation only; it is not team shape, off-ball geometry, or physical player-location truth."
+                "same-time review, and follow-up states. The actor-location surface is scoped to admitted on-ball/interaction "
+                "location participation; team shape, off-ball geometry, and physical player-location truth remain outside this claim scope."
             )
         cards.extend([football, evidence])
     return cards
