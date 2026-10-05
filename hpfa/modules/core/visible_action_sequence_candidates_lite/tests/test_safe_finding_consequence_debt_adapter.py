@@ -143,3 +143,18 @@ def test_censoring_failure_promotion_fails_closed() -> None:
     assert out["status"] == "FAIL_CLOSED"
     assert "variant_feature_challenge_censoring_failure_lock_breached" in out["hard_block_hits"]
     assert out["safe_finding_admission_decisions"] == []
+
+
+def test_tested_horizon_sensitivity_is_qualified_not_unresolved():
+    out = apply_variant_feature_challenge_to_admission(
+        _sequence(),
+        _admission(),
+        _challenge(reasons=["ADMITTED_FOLLOWUP_HORIZON_SENSITIVE"]),
+        _process_variant(),
+    )
+    row = out["safe_finding_admission_decisions"][0]
+    assert row["decision"] == "DOWNGRADE"
+    assert row["claim_output_allowed"] is False
+    assert "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_SENSITIVE" in row["decision_reasons"]
+    assert "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_UNRESOLVED" not in row["decision_reasons"]
+    assert out["professional_finding_emitted_count"] == 0

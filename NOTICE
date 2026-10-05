@@ -1,7 +1,10 @@
 HPFA THIRD-PARTY NOTICE
 
-HPFA product distribution is REVIEW_REQUIRED until dependency, donor/vendor and
-match-data redistribution rights are verified for the exact release bundle.
+HPFA-owned software may be distributed under the assisted controlled commercial
+pilot policy when the exact bundle contains no raw provider match data, no raw
+donor/vendor source and no bundled third-party runtime packages.
+
+PRODUCTION_RELEASE and public package-index upload remain unauthorized.
 
 Canonical core:
 - No mandatory third-party Python runtime dependency is declared.

@@ -44,12 +44,15 @@ The long-term commercial target is therefore not a script that analyzes one fixt
 
 ## Installation and distribution status
 
-HPFA is currently a private pre-release product. The source tree is not approved
-for public package-index upload or external/commercial redistribution.
+HPFA is currently authorized for an **assisted controlled commercial pilot** of
+HPFA-owned software and documentation. This authorization is not a production
+release and does not authorize public package-index upload.
 
-The canonical Python package is built from the match-agnostic hpfa and canon
-namespace trees. Generated runtime/output material, vendor/donor snapshots and
-historical match artefacts are not part of the distribution package.
+The canonical product package is built from the match-agnostic hpfa and canon
+namespace trees plus explicitly admitted HPFA-owned compatibility entrypoints.
+Generated runtime/output material, raw provider match data, vendor/donor snapshots
+and historical match artefacts are not part of the commercial software bundle.
+Customer/provider match data must be supplied under separate usage rights.
 
 Base core installation intentionally has no mandatory third-party Python runtime
 dependency. Optional capabilities are explicit:
@@ -59,9 +62,11 @@ dependency. Optional capabilities are explicit:
 - dev: tests and XLSX test/bootstrap fixtures;
 - legacy-tools: non-core historical/visual tooling.
 
-Copyright and redistribution boundaries are defined in LICENSE, NOTICE and
-THIRD_PARTY_NOTICES.md. Unknown donor, provider-data or third-party rights remain
-REVIEW_REQUIRED and cannot be promoted by packaging.
+Copyright and redistribution boundaries are defined in LICENSE, NOTICE,
+THIRD_PARTY_NOTICES.md and release/commercial_pilot_policy_v1.json. Unknown donor,
+provider-data or third-party rights remain REVIEW_REQUIRED and cannot be promoted
+by packaging. Controlled-pilot authorization applies only to HPFA-owned material
+and generated outputs derived from customer/provider-authorized inputs.
 
 ## Authority
 

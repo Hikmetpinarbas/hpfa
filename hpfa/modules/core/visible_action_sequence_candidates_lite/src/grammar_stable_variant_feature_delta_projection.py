@@ -532,7 +532,7 @@ def build_grammar_stable_variant_feature_delta(
             "first_supported_consequence_difference_layer_candidate": first_consequence_layer,
             "consequence_observation_state_features_consumed": observation_state_surface_present,
             "consequence_horizon_definition_state": horizon_state,
-            "consequence_horizon_sensitivity_tested": False,
+            "consequence_horizon_sensitivity_tested": horizon_tested,
             "admitted_followup_horizon_sensitivity_surface_consumed": horizon_sensitivity_surface_present,
             "admitted_followup_horizon_sensitivity_tested": horizon_tested,
             "admitted_followup_horizon_sensitive_variant_count": horizon_sensitive_variant_count,

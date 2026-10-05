@@ -8,7 +8,6 @@ CLAIM_CEILING_DOWNGRADE = "MATCH_LOCAL_SAFE_FINDING_CUE_ONLY"
 _CONSEQUENCE_HORIZON_CHALLENGE_REASONS = {
     "CONSEQUENCE_HORIZON_UNSPECIFIED",
     "CONSEQUENCE_HORIZON_SENSITIVITY_NOT_TESTED",
-    "ADMITTED_FOLLOWUP_HORIZON_SENSITIVE",
     "ADMITTED_FOLLOWUP_HORIZON_SENSITIVITY_PARTIAL",
     "ADMITTED_FOLLOWUP_HORIZON_SENSITIVITY_NOT_TESTED",
 }
@@ -535,6 +534,10 @@ def apply_variant_feature_challenge_to_admission(
             if challenge_reason_codes.intersection(_CONSEQUENCE_HORIZON_CHALLENGE_REASONS):
                 challenge_downgrade_reasons.append(
                     "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_UNRESOLVED"
+                )
+            if "ADMITTED_FOLLOWUP_HORIZON_SENSITIVE" in challenge_reason_codes:
+                challenge_downgrade_reasons.append(
+                    "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_SENSITIVE"
                 )
             if challenge_reason_codes.intersection(_CONSEQUENCE_CENSORING_CHALLENGE_REASONS):
                 challenge_downgrade_reasons.append(

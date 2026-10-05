@@ -127,6 +127,25 @@ def test_fact_only_review_preserves_denominator_counterevidence_and_withdrawal()
     assert "SAMPLE_COMPOSITION_MAY_EXPLAIN_DIFFERENCE" in rendered
 
 
+def test_zero_professional_claim_report_is_explicitly_review_narrative_not_admitted_finding() -> None:
+    view = build_presentation_view_model(
+        {"status": "REVIEW_REQUIRED", "active_match_authority": "/runtime/current"},
+        analyst_report_tr="Maç okuma sentezi.",
+        analyst_report_en="Match-reading synthesis.",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload={
+            "status": "REVIEW_REQUIRED",
+            "analyst_output_contract_count": 2,
+            "analyst_output_contracts": [],
+            "source_bound_render_contracts": [],
+        },
+    )
+    rendered = render_professional_html(view, language="tr")
+    assert "Analist inceleme anlatısı" in rendered
+    assert "profesyonel bulgu olarak kabul edilmemiştir" in rendered
+    assert "Maç okuma sentezi." in rendered
+
+
 def test_non_render_allowed_contract_is_not_promoted_to_fact_review() -> None:
     payload = {
         "analyst_output_contracts": [{"analyst_output_contract_id": "aoc_1"}],
@@ -151,3 +170,67 @@ def test_non_render_allowed_contract_is_not_promoted_to_fact_review() -> None:
     )
     assert view["fact_review_records"] == []
     assert view["claim_admission_summary"]["fact_only_render_count"] == 0
+
+
+def test_match_local_descriptive_findings_are_deduplicated_and_rendered_without_claim_inflation():
+    safe = {
+        "safe_finding_admission_decisions": [
+            {
+                "source_safe_finding_handoff_ref": "sfh_1",
+                "match_local_descriptive_finding_admitted": True,
+                "variant_feature_challenge_family_refs": ["family_1"],
+                "variant_support_episode_spread_max_visible_count": 11,
+                "actor_spread_count": 2,
+                "decision": "DOWNGRADE",
+                "branch_preoutcome_context_enrichment": {
+                    "team_identity_candidate_id": "team_a",
+                    "period_candidate": "1",
+                    "score_state_candidate": {"Galatasaray (29205)": 0, "Trabzonspor (77018)": 1},
+                    "provider_process_family_candidates": ["POSITIONAL_ATTACK_CANDIDATE"],
+                    "anchor_action_family_counts": {"PASS": 1},
+                    "shared_anchor_time_candidate": 100.0,
+                },
+            },
+            {
+                "source_safe_finding_handoff_ref": "sfh_2",
+                "match_local_descriptive_finding_admitted": True,
+                "variant_feature_challenge_family_refs": ["family_1"],
+                "variant_support_episode_spread_max_visible_count": 11,
+                "actor_spread_count": 2,
+                "decision": "DOWNGRADE",
+                "branch_preoutcome_context_enrichment": {
+                    "team_identity_candidate_id": "team_a",
+                    "period_candidate": "1",
+                    "score_state_candidate": {"Galatasaray (29205)": 0, "Trabzonspor (77018)": 1},
+                    "provider_process_family_candidates": ["POSITIONAL_ATTACK_CANDIDATE"],
+                    "anchor_action_family_counts": {"PASS": 1},
+                    "shared_anchor_time_candidate": 120.0,
+                },
+            },
+        ]
+    }
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_a",
+            "team_aliases_raw": ["trabzonspor (77018)"],
+            "team_normalized_key": "trabzonspor",
+        }]
+    }
+    view = build_presentation_view_model(
+        {"status": "REVIEW_REQUIRED"},
+        analyst_report_tr="",
+        analyst_report_en="",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload={"status": "REVIEW_REQUIRED", "analyst_output_contracts": []},
+        safe_finding_payload=safe,
+        identity_payload=identity,
+    )
+    assert view["match_local_descriptive_finding_count"] == 1
+    row = view["match_local_descriptive_findings"][0]
+    assert row["source_handoff_count"] == 2
+    assert row["team_name"] == "Trabzonspor"
+    assert row["professional_emit_allowed"] is False
+    rendered = render_professional_html(view, language="tr")
+    assert "Maç-içi görünür mekanizma bulguları" in rendered
+    assert "Trabzonspor" in rendered
+    assert "taktik gerçek" in rendered
