@@ -836,6 +836,115 @@ def build_diagnostic(
         {"node":"ANALYST OUTPUT","reached":(root/"HPFA_ANALYST_REPORT.txt").is_file(),"meaningful_object_count":1 if (root/"HPFA_ANALYST_REPORT.txt").is_file() else 0,"major_censoring":None,"unresolved_burden":"report is review output, not evidence","dependency_burden":"human text must remain under machine ceiling","next_barrier":"cross-artifact accounting consistency"},
     ]
 
+    spine_by_node = {
+        str(row.get("node")): row
+        for row in evidence_spine
+        if isinstance(row, dict) and row.get("node")
+    }
+
+    def _capability_stage_status(nodes: tuple[str, ...]) -> str:
+        rows = [spine_by_node.get(node, {}) for node in nodes]
+        reached = [bool(row.get("reached")) for row in rows]
+        if reached and all(reached):
+            unresolved = [
+                row.get("unresolved_burden")
+                for row in rows
+                if row.get("unresolved_burden") not in (None, "", [], {}, 0)
+            ]
+            return "DEGRADED" if unresolved else "AVAILABLE"
+        if any(reached):
+            return "DEGRADED"
+        return "NOT_REACHED"
+
+    passport_stage_specs = [
+        ("PRESERVED", ("SOURCE", "SURFACE"), ("multiformat_inventory",)),
+        (
+            "READABLE",
+            ("SURFACE", "OBSERVATION"),
+            ("csv_surface_reader", "xml_surface_reader", "xlsx_surface_reader"),
+        ),
+        (
+            "UNDERSTOOD",
+            ("SEMANTICS",),
+            ("provider_alias_field_semantics", "provider_label_value_semantics", "context_action_semantics_rebind"),
+        ),
+        (
+            "ADMITTED",
+            ("OBSERVATION", "IDENTITY/DEPENDENCY"),
+            ("evidence_atom_inventory", "match_local_identity", "action_occurrence_admission"),
+        ),
+        (
+            "SCENARIO_PLACED",
+            ("TIME/SPACE ADMISSION",),
+            ("event_window_builder", "spatial_transition_candidate", "occurrence_state_transition_projection"),
+        ),
+        (
+            "PROCESS_CONNECTED",
+            ("RELATION", "EPISODE/PROCESS"),
+            ("cross_role_relation_resolver", "process_participation_projection", "visible_action_sequence"),
+        ),
+        (
+            "CONSTRUCT_USABLE",
+            ("FEATURE", "METRIC/MODEL", "SIGNAL"),
+            ("grammar_stable_variant_feature_delta", "rich_multiformat_analysis_lattice", "metric_governance_bridge"),
+        ),
+        (
+            "FINDING_USABLE",
+            ("COUNTEREVIDENCE", "FINDING"),
+            ("variant_feature_challenge", "safe_finding_admission"),
+        ),
+        (
+            "ANALYST_EXPLAINABLE",
+            ("CLAIM", "ANALYST OUTPUT"),
+            ("analyst_output_claim_contract",),
+        ),
+    ]
+    capability_passport = {
+        "module_id": "enriched_package_capability_passport_v1",
+        "status": "REVIEW_REQUIRED",
+        "decision": "DESCRIBE_CURRENT_PACKAGE_CAPABILITY_WITHOUT_SCALAR_QUALITY_SCORE",
+        "capability_ladder": [
+            {
+                "stage": stage,
+                "status": _capability_stage_status(nodes),
+                "basis_spine_nodes": list(nodes),
+                "basis_components": list(basis_components),
+                "creates_new_evidence": False,
+                "creates_finding_authority": False,
+            }
+            for stage, nodes, basis_components in passport_stage_specs
+        ],
+        "observation_family_status": {
+            str(row.get("family")): (
+                "NOT_APPLICABLE"
+                if row.get("family") == "TRACKING/VIDEO"
+                else (
+                    "OPTIONAL_ABSENT"
+                    if row.get("family") == "EXTERNAL CONTEXT"
+                    and row.get("status") == "ABSENT"
+                    else row.get("status")
+                )
+            )
+            for row in capabilities
+            if isinstance(row, dict) and row.get("family")
+        },
+        "universal_provider_quality_score": None,
+        "scalar_quality_score_allowed": False,
+        "capability_passport_creates_new_evidence": False,
+        "capability_passport_creates_finding_authority": False,
+        "tracking_video_is_required_dependency": False,
+        "canonical_event_count": UNKNOWN,
+        "true_action_count": UNKNOWN,
+        "production_release": False,
+    }
+    ladder_statuses = {
+        str(row.get("status")) for row in capability_passport["capability_ladder"]
+    }
+    if ladder_statuses == {"AVAILABLE"}:
+        capability_passport["status"] = "PASS"
+    elif "NOT_REACHED" in ladder_statuses or "DEGRADED" in ladder_statuses:
+        capability_passport["status"] = "REVIEW_REQUIRED"
+
     machine_chain_count = full.get("intelligence_chain_count")
     human_chain_raw = _human_report_scalar(root, "intelligence_chain_count")
     try:
@@ -1248,6 +1357,7 @@ def build_diagnostic(
         },
         "observation_capability_coverage": capabilities,
         "evidence_spine_coverage": evidence_spine,
+        "enriched_package_capability_passport": capability_passport,
         "cross_artifact_consistency": consistency,
         "match_football_intelligence": match_intelligence,
         "top_defensible_process_mechanism_candidates": _top_mechanism_candidates(
@@ -1306,8 +1416,32 @@ def _render_text(diagnostic: dict[str, Any]) -> str:
             sort_keys=True,
         ),
         "",
-        "cross_artifact_consistency:",
+        "",
+        "[2B] ENRICHED PACKAGE CAPABILITY PASSPORT",
     ]
+    passport = diagnostic["enriched_package_capability_passport"]
+    for row in passport["capability_ladder"]:
+        lines.append(
+            f"{row['stage']}={row['status']} | "
+            f"basis_nodes={','.join(row.get('basis_spine_nodes') or [])}"
+        )
+    lines.append("observation_family_status:")
+    for family, family_status in sorted(passport["observation_family_status"].items()):
+        lines.append(f"- {family}={family_status}")
+    lines.append(
+        "scalar_quality_score_allowed="
+        + str(passport["scalar_quality_score_allowed"]).lower()
+    )
+    lines.append(
+        "capability_passport_creates_new_evidence="
+        + str(passport["capability_passport_creates_new_evidence"]).lower()
+    )
+    lines.extend(
+        [
+            "",
+            "cross_artifact_consistency:",
+        ]
+    )
     for row in diagnostic["cross_artifact_consistency"]:
         lines.append(
             f"- {row['check']}: {row['status']} | "

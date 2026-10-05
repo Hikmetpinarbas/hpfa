@@ -95,6 +95,41 @@ def test_diagnostic_enumerates_capabilities_spine_and_blocked_prerequisites(tmp_
     assert statuses["triplex_source_alignment"] == "BLOCKED_BY_PREREQUISITE"
 
 
+def test_diagnostic_exposes_non_scalar_enriched_package_capability_passport(tmp_path: Path) -> None:
+    module = _load_module()
+    _minimal_runtime(tmp_path)
+    diagnostic = module.build_diagnostic(tmp_path)
+
+    passport = diagnostic["enriched_package_capability_passport"]
+    assert [row["stage"] for row in passport["capability_ladder"]] == [
+        "PRESERVED",
+        "READABLE",
+        "UNDERSTOOD",
+        "ADMITTED",
+        "SCENARIO_PLACED",
+        "PROCESS_CONNECTED",
+        "CONSTRUCT_USABLE",
+        "FINDING_USABLE",
+        "ANALYST_EXPLAINABLE",
+    ]
+    assert passport["universal_provider_quality_score"] is None
+    assert passport["scalar_quality_score_allowed"] is False
+    assert passport["capability_passport_creates_new_evidence"] is False
+    assert passport["capability_passport_creates_finding_authority"] is False
+    assert passport["canonical_event_count"] == "UNKNOWN"
+    assert passport["true_action_count"] == "UNKNOWN"
+    assert passport["production_release"] is False
+    assert "TRACKING/VIDEO" in passport["observation_family_status"]
+    assert passport["observation_family_status"]["TRACKING/VIDEO"] == "NOT_APPLICABLE"
+    assert all("basis_components" in row for row in passport["capability_ladder"])
+    rendered = module._render_text(diagnostic)
+    assert "[2B] ENRICHED PACKAGE CAPABILITY PASSPORT" in rendered
+    assert "PRESERVED=" in rendered
+    assert "ANALYST_EXPLAINABLE=" in rendered
+    assert "scalar_quality_score_allowed=false" in rendered
+    assert "TRACKING/VIDEO=NOT_APPLICABLE" in rendered
+
+
 def test_diagnostic_separates_artifact_presence_from_current_execution(tmp_path: Path) -> None:
     module = _load_module()
     _minimal_runtime(tmp_path)
