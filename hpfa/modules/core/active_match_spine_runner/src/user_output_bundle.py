@@ -792,6 +792,7 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 "pass_only_location_excluded": 0,
                 "actor_location_actor_presence": {},
                 "actor_location_actor_anchor_observations": {},
+                "actor_location_actor_consequence_context": {},
             },
         )
         bucket["eligible"] += int(row.get("eligible_process_n") or 0)
@@ -817,6 +818,29 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
             bucket["actor_location_process"] += int(actor_location.get("actor_location_observable_process_n") or 0)
             bucket["actor_location_layers"] += int(actor_location.get("eligible_location_temporal_layer_n") or 0)
             bucket["pass_only_location_excluded"] += int(actor_location.get("pass_only_temporal_layer_excluded_n") or 0)
+            for actor_context in actor_location.get("actor_location_actor_consequence_context_profiles") or []:
+                if not isinstance(actor_context, dict):
+                    continue
+                actor_id = str(actor_context.get("actor_identity_candidate_id") or "").strip()
+                if not actor_id:
+                    continue
+                aggregate = bucket["actor_location_actor_consequence_context"].setdefault(
+                    actor_id,
+                    {
+                        "shot_ending_actor_location_process_n": 0,
+                        "non_shot_actor_location_process_n": 0,
+                        "consequence_process_presence_counts": {},
+                    },
+                )
+                aggregate["shot_ending_actor_location_process_n"] += int(
+                    actor_context.get("shot_ending_actor_location_process_n") or 0
+                )
+                aggregate["non_shot_actor_location_process_n"] += int(
+                    actor_context.get("non_shot_actor_location_process_n") or 0
+                )
+                consequence_counts = aggregate["consequence_process_presence_counts"]
+                for key, count in (actor_context.get("consequence_process_presence_counts") or {}).items():
+                    consequence_counts[str(key)] = int(consequence_counts.get(str(key)) or 0) + int(count or 0)
             for actor_profile in actor_location.get("actor_location_actor_profiles") or []:
                 if not isinstance(actor_profile, dict):
                     continue
@@ -839,22 +863,37 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 int(presence_n or 0),
                 int(values["actor_location_actor_anchor_observations"].get(actor_id) or 0),
                 actors.get(actor_id),
+                actor_id,
             )
             for actor_id, presence_n in values["actor_location_actor_presence"].items()
             if actors.get(actor_id)
         ]
         actor_location_candidates.sort(key=lambda item: (-item[0], -item[1], str(item[2])))
         top_actor_location = actor_location_candidates[0] if actor_location_candidates else None
+        top_actor_context = (
+            values["actor_location_actor_consequence_context"].get(top_actor_location[3], {})
+            if top_actor_location
+            else {}
+        )
         if language == "tr":
-            actor_location_sentence = (
-                (
+            actor_location_sentence = ""
+            if top_actor_location:
+                consequence_counts = top_actor_context.get("consequence_process_presence_counts") or {}
+                handover_n = int(consequence_counts.get("OPPONENT_HANDOVER_CANDIDATE") or 0)
+                continuation_n = int(consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
+                context_sentence = ""
+                if handover_n or continuation_n:
+                    context_sentence = (
+                        f" Bu actor-location bağlamındaki süreçlerin {handover_n} tanesinde rakibe geçiş, "
+                        f"{continuation_n} tanesinde aynı takım devamı görüldü; "
+                        "bu eşleşmenin claim kapsamı maç-içi görünür bağlamla sınırlıdır; nedensel oyuncu katkısı için ek kanıt gerekir."
+                    )
+                actor_location_sentence = (
                     f" Kimliği admitted olan {top_actor_location[2]} "
                     f"{top_actor_location[0]} görünür süreçte actor-location katılımı verdi; "
                     f"bu yüzeyde {top_actor_location[1]} anchor gözlemi var."
+                    f"{context_sentence}"
                 )
-                if top_actor_location
-                else ""
-            )
             football = (
                 f"{name}: Sistem bu maçta {values['eligible']} görünür oyun sürecini takım bağlamına bağlayabildi. "
                 f"Bunların {values['loss']} tanesinde top kaybı, {values['recovery']} tanesinde top kazanımı ve "
@@ -875,14 +914,22 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 "konum katılımını betimler; takım şekli, off-ball geometri ve fiziksel oyuncu konumu bu yüzeyin claim kapsamı dışındadır."
             )
         else:
-            actor_location_sentence = (
-                (
+            actor_location_sentence = ""
+            if top_actor_location:
+                consequence_counts = top_actor_context.get("consequence_process_presence_counts") or {}
+                handover_n = int(consequence_counts.get("OPPONENT_HANDOVER_CANDIDATE") or 0)
+                continuation_n = int(consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
+                context_sentence = ""
+                if handover_n or continuation_n:
+                    context_sentence = (
+                        f" Within those actor-location contexts, {handover_n} processes showed opponent handover and "
+                        f"{continuation_n} same-team continuation; this co-observation is not causal player contribution."
+                    )
+                actor_location_sentence = (
                     f" Admitted identity {top_actor_location[2]} appeared in actor-location participation across "
                     f"{top_actor_location[0]} visible processes with {top_actor_location[1]} anchor observations."
+                    f"{context_sentence}"
                 )
-                if top_actor_location
-                else ""
-            )
             football = (
                 f"{name}: The system linked {values['eligible']} visible match processes to this team. "
                 f"A visible loss occurred in {values['loss']}, a recovery in {values['recovery']}, and "

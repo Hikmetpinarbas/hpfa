@@ -3789,6 +3789,9 @@ def _construct_c03(
     def _aggregate_actor_location_context(rows: list[dict[str, Any]]) -> dict[str, Any]:
         actor_process_presence_counts: Counter[str] = Counter()
         actor_anchor_observation_counts: Counter[str] = Counter()
+        actor_consequence_process_presence_counts: dict[str, Counter[str]] = defaultdict(Counter)
+        actor_shot_ending_location_process_counts: Counter[str] = Counter()
+        actor_non_shot_location_process_counts: Counter[str] = Counter()
         zone_layer_counts: Counter[str] = Counter()
         observable_process_n = 0
         eligible_layer_n = 0
@@ -3802,18 +3805,30 @@ def _construct_c03(
             if row_eligible > 0 and profiles:
                 observable_process_n += 1
             seen_actors: set[str] = set()
+            row_consequences = {
+                str(value) for value in (row.get("primary_consequence_candidates_observed") or [])
+                if str(value)
+            }
+            row_is_shot_ending = row.get("shot_present_annotation_candidate") is True
             for profile in profiles:
                 actor_id = str(profile.get("actor_identity_candidate_id") or "").strip()
                 if not actor_id:
                     continue
                 if actor_id not in seen_actors:
                     actor_process_presence_counts[actor_id] += 1
+                    if row_is_shot_ending:
+                        actor_shot_ending_location_process_counts[actor_id] += 1
+                    else:
+                        actor_non_shot_location_process_counts[actor_id] += 1
+                    for consequence in row_consequences:
+                        actor_consequence_process_presence_counts[actor_id][consequence] += 1
                     seen_actors.add(actor_id)
                 actor_anchor_observation_counts[actor_id] += int(profile.get("anchor_observation_n") or 0)
                 for zone, count in (profile.get("provider_zone_layer_counts") or {}).items():
                     zone_layer_counts[str(zone)] += int(count or 0)
         eligible_process_n = len(rows)
         actor_location_actor_profiles = []
+        actor_location_actor_consequence_context_profiles = []
         for actor_id in sorted(actor_process_presence_counts):
             presence_n = int(actor_process_presence_counts[actor_id])
             actor_location_actor_profiles.append({
@@ -3828,6 +3843,25 @@ def _construct_c03(
                 "visible_process_spread_is_stable_role_truth": False,
                 "visible_process_spread_is_player_importance_truth": False,
             })
+            actor_location_actor_consequence_context_profiles.append({
+                "actor_identity_candidate_id": actor_id,
+                "actor_location_observable_process_n": presence_n,
+                "shot_ending_actor_location_process_n": int(
+                    actor_shot_ending_location_process_counts.get(actor_id) or 0
+                ),
+                "non_shot_actor_location_process_n": int(
+                    actor_non_shot_location_process_counts.get(actor_id) or 0
+                ),
+                "consequence_process_presence_counts": dict(sorted(
+                    actor_consequence_process_presence_counts.get(actor_id, Counter()).items()
+                )),
+                "consequence_counts_are_process_presence_not_occurrence_volume": True,
+                "actor_caused_consequence_truth": False,
+                "actor_induced_opponent_response_truth": False,
+                "actor_consequence_context_is_causal_contribution_truth": False,
+                "actor_consequence_context_creates_independent_support": False,
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_ACTOR_CONSEQUENCE_CONTEXT_ONLY",
+            })
         return {
             "eligible_process_n": eligible_process_n,
             "actor_location_observable_process_n": observable_process_n,
@@ -3839,6 +3873,7 @@ def _construct_c03(
             "actor_process_presence_counts": dict(sorted(actor_process_presence_counts.items())),
             "actor_anchor_observation_counts": dict(sorted(actor_anchor_observation_counts.items())),
             "actor_location_actor_profiles": actor_location_actor_profiles,
+            "actor_location_actor_consequence_context_profiles": actor_location_actor_consequence_context_profiles,
             "provider_zone_layer_counts": dict(sorted(zone_layer_counts.items())),
             "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
             "actor_process_presence_is_action_volume_truth": False,

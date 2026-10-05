@@ -763,6 +763,19 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
                                 "visible_process_spread_is_stable_role_truth": False,
                                 "visible_process_spread_is_player_importance_truth": False,
                             }],
+                            "actor_location_actor_consequence_context_profiles": [{
+                                "actor_identity_candidate_id": "actor_1",
+                                "actor_location_observable_process_n": 4,
+                                "shot_ending_actor_location_process_n": 1,
+                                "non_shot_actor_location_process_n": 3,
+                                "consequence_process_presence_counts": {
+                                    "OPPONENT_HANDOVER_CANDIDATE": 2,
+                                    "SAME_TEAM_CONTINUATION_CANDIDATE": 1,
+                                },
+                                "actor_caused_consequence_truth": False,
+                                "actor_induced_opponent_response_truth": False,
+                                "actor_consequence_context_is_causal_contribution_truth": False,
+                            }],
                             "provider_zone_layer_counts": {"FINAL_THIRD": 5, "MIDDLE_THIRD": 4},
                             "coordinate_is_average_position_truth": False,
                             "coordinate_is_tracking_truth": False,
@@ -800,10 +813,63 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     assert "21 PASS-only katman konum hesabından dışlandı" in text
     assert "Player One 4 görünür süreçte actor-location katılımı verdi" in text
     assert "6 anchor gözlemi" in text
+    assert "Bu actor-location bağlamındaki süreçlerin 2 tanesinde rakibe geçiş" in text
+    assert "1 tanesinde aynı takım devamı görüldü" in text
+    assert "claim kapsamı maç-içi görünür bağlamla sınırlıdır" in text
+    assert "nedensel oyuncu katkısı için ek kanıt gerekir" in text
     assert "kalıcı rol" not in text.lower()
     assert "ortalama pozisyon" not in text.lower()
     assert "tracking konumu" not in text.lower()
 
+
+
+def test_team_process_cards_accumulate_actor_consequence_context_across_process_families() -> None:
+    rich = {"constructs": {"C03": {"team_process_profiles": []}}}
+    for family, handover, continuation in [
+        ("COUNTERATTACK_CANDIDATE", 2, 1),
+        ("POSITIONAL_ATTACK_CANDIDATE", 3, 4),
+    ]:
+        rich["constructs"]["C03"]["team_process_profiles"].append({
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": family,
+            "eligible_process_n": 5,
+            "shot_ending_process_n": 0,
+            "visible_loss_process_n": 0,
+            "visible_recovery_process_n": 0,
+            "visible_consequence_response_profile": {"process_presence_counts": {}},
+            "visible_actor_location_participation_profile": {
+                "actor_location_observable_process_n": 3,
+                "eligible_location_temporal_layer_n": 3,
+                "pass_only_temporal_layer_excluded_n": 0,
+                "actor_location_actor_profiles": [{
+                    "actor_identity_candidate_id": "actor_1",
+                    "visible_process_presence_n": 3,
+                    "anchor_observation_n": 3,
+                }],
+                "actor_location_actor_consequence_context_profiles": [{
+                    "actor_identity_candidate_id": "actor_1",
+                    "shot_ending_actor_location_process_n": 0,
+                    "non_shot_actor_location_process_n": 3,
+                    "consequence_process_presence_counts": {
+                        "OPPONENT_HANDOVER_CANDIDATE": handover,
+                        "SAME_TEAM_CONTINUATION_CANDIDATE": continuation,
+                    },
+                }],
+            },
+        })
+    identity = {
+        "team_identity_candidates": [{"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"}],
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_aliases_raw": ["Player One"],
+            "validated_player_identity": True,
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+        }],
+    }
+    text = "\n".join(user_output_bundle._human_team_process_cards(rich, identity, "tr"))
+    assert "6 görünür süreçte actor-location katılımı verdi" in text
+    assert "5 tanesinde rakibe geçiş" in text
+    assert "5 tanesinde aynı takım devamı görüldü" in text
 
 
 def _write_current_inventory(path: Path) -> None:

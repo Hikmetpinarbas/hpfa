@@ -1903,6 +1903,93 @@ def test_c03_variant_context_keeps_actor_location_descriptive_and_out_of_causali
     assert profile["actor_location_difference_is_tactical_mechanism_truth"] is False
 
 
+def test_c03_actor_location_consequence_context_is_descriptive_not_causal() -> None:
+    processes = {
+        "process_participation_candidates": [
+            {
+                "process_participation_candidate_id": "p1",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK",
+                "team_identity_candidate_id": "A",
+                "period_candidate": "1",
+                "start_candidate": 10.0,
+                "end_candidate": 15.0,
+                "shot_present_annotation_candidate": True,
+            },
+            {
+                "process_participation_candidate_id": "p2",
+                "semantic_role": "CONTEXT_INTERVAL",
+                "process_family_candidate": "POSITIONAL_ATTACK",
+                "team_identity_candidate_id": "A",
+                "period_candidate": "1",
+                "start_candidate": 20.0,
+                "end_candidate": 25.0,
+                "shot_present_annotation_candidate": False,
+            },
+        ]
+    }
+    occurrences = {
+        "occurrence_state_transition_projections": [
+            {
+                "action_occurrence_candidate_id": "o1",
+                "team_identity_candidate_ids": ["A"],
+                "period_candidates": ["1"],
+                "start_candidates": [12.0],
+                "action_family_candidates": ["CARRY"],
+                "actor_identity_candidate_ids": ["actor_1"],
+                "supporting_spatial_transition_candidate_ids": ["s1"],
+                "primary_consequence_candidates": ["OPPONENT_HANDOVER_CANDIDATE"],
+            },
+            {
+                "action_occurrence_candidate_id": "o2",
+                "team_identity_candidate_ids": ["A"],
+                "period_candidates": ["1"],
+                "start_candidates": [22.0],
+                "action_family_candidates": ["DRIBBLE"],
+                "actor_identity_candidate_ids": ["actor_1"],
+                "supporting_spatial_transition_candidate_ids": ["s2"],
+                "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+            },
+        ]
+    }
+    spatial = {
+        "spatial_transition_candidates": [
+            {
+                "spatial_transition_candidate_id": "s1",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 80.0,
+                "provider_coordinate_anchor_y_candidate": 30.0,
+                "provider_zone_candidates": ["FINAL_THIRD"],
+            },
+            {
+                "spatial_transition_candidate_id": "s2",
+                "occurrence_annotation_anchor_location_admitted": True,
+                "provider_coordinate_anchor_x_candidate": 60.0,
+                "provider_coordinate_anchor_y_candidate": 35.0,
+                "provider_zone_candidates": ["MIDDLE_THIRD"],
+            },
+        ]
+    }
+
+    result = _construct_c03(processes, occurrences, spatial)
+    profile = result["team_process_profiles"][0]["visible_actor_location_participation_profile"]
+    actor = profile["actor_location_actor_consequence_context_profiles"][0]
+
+    assert actor["actor_identity_candidate_id"] == "actor_1"
+    assert actor["actor_location_observable_process_n"] == 2
+    assert actor["shot_ending_actor_location_process_n"] == 1
+    assert actor["non_shot_actor_location_process_n"] == 1
+    assert actor["consequence_process_presence_counts"] == {
+        "OPPONENT_HANDOVER_CANDIDATE": 1,
+        "SAME_TEAM_CONTINUATION_CANDIDATE": 1,
+    }
+    assert actor["consequence_counts_are_process_presence_not_occurrence_volume"] is True
+    assert actor["actor_caused_consequence_truth"] is False
+    assert actor["actor_induced_opponent_response_truth"] is False
+    assert actor["actor_consequence_context_is_causal_contribution_truth"] is False
+    assert actor["actor_consequence_context_creates_independent_support"] is False
+
+
 def test_c03_preserves_full_occurrence_pool_across_multiple_processes():
     process = {
         "process_participation_candidates": [
