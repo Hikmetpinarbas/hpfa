@@ -483,8 +483,19 @@ def _human_ratio(numerator: Any, denominator: Any) -> str:
         return "N/A"
 
 
+def _football_family_key(value: Any) -> str:
+    key = str(value or "").strip().upper().replace("-", "_").replace(" ", "_")
+    key = key.replace("_CANDIDATE", "")
+    return {
+        "POSITIONAL_ATTACKS": "POSITIONAL_ATTACK",
+        "COUNTERATTACKS": "COUNTERATTACK",
+        "SET_PIECE_ATTACKS": "SET_PIECE_ATTACK",
+        "TRANSITION_ATTACKS": "TRANSITION_ATTACK",
+    }.get(key, key)
+
+
 def _football_family_label(value: Any, language: str) -> str:
-    key = str(value or "").strip().replace("_CANDIDATE", "")
+    key = _football_family_key(value)
     labels_tr = {
         "POSITIONAL_ATTACK": "yerleşik hücum",
         "COUNTERATTACK": "kontra atak",
@@ -4517,12 +4528,12 @@ def build_hp_football_report_tr(
         next_counts: Counter[str] = Counter()
         for row in team_losses:
             for fam in row.get("next_opponent_process_family_candidates") or []:
-                next_counts[str(fam)] += 1
+                next_counts[_football_family_key(fam)] += 1
         team_rec = [r for r in rec_rows if ref in (r.get("team_identity_candidate_ids") or [])]
         rec_counts: Counter[str] = Counter()
         for row in team_rec:
             for fam in row.get("next_visible_process_family_candidates") or []:
-                rec_counts[str(fam)] += 1
+                rec_counts[_football_family_key(fam)] += 1
         loss_detail = ", ".join(
             f"{_football_family_label(fam, 'tr')} {n}" for fam, n in next_counts.most_common()
         ) or "tek bir sonraki hücum tipine güvenli biçimde bağlanamayan örnekler ağırlıkta"
@@ -4557,9 +4568,27 @@ def build_hp_football_report_tr(
             )
     lines.append("- Bu değişim maçın farklı bölümlerinde kullanılan hücum yollarının farklılaştığını gösterir. Taktik değişiklik veya momentum yorumu için ek bağlam gerekir.")
 
-    lines.extend(["", "TEKRAR EDEN YOLLAR VE AYRIŞMA NOKTALARI"])
+    lines.extend(["", "TEKRAR EDEN YOLLAR VE VARYANTLAR"])
     feature = _load_json(root / FEATURE_DELTA_JSON)
     records = [r for r in feature.get("grammar_stable_variant_feature_delta_records") or [] if isinstance(r, dict)]
+    mechanism_cards = (
+        _human_mechanism_cards(
+            root,
+            full_spine,
+            identity,
+            "tr",
+            analyst_question_payload=analyst_question_payload,
+        )
+        if records
+        else []
+    )
+    mechanism_highlights = _hp_take_clean(
+        _human_match_story_mechanism_highlights(mechanism_cards, "tr", limit=4),
+        limit=4,
+    )
+    if mechanism_highlights:
+        lines.extend(f"- {line}" for line in mechanism_highlights)
+
     records.sort(
         key=lambda r: (
             int(r.get("visible_episode_spread_count") or 0),
@@ -4567,58 +4596,7 @@ def build_hp_football_report_tr(
         ),
         reverse=True,
     )
-    if analyst_question_payload and records:
-        analyst_output_payload = (
-            _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
-            if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
-            else {}
-        )
-        process_variant_payload = (
-            _load_json(root / PROCESS_VARIANT_JSON)
-            if _declared_current(full_spine, PROCESS_VARIANT_JSON)
-            else {}
-        )
-        process_participation_payload = (
-            _load_json(root / PROCESS_PARTICIPATION_JSON)
-            if _declared_current(full_spine, PROCESS_PARTICIPATION_JSON)
-            else {}
-        )
-        variant_feature_challenge_payload = (
-            _load_json(root / VARIANT_FEATURE_CHALLENGE_JSON)
-            if _declared_current(full_spine, VARIANT_FEATURE_CHALLENGE_JSON)
-            else {}
-        )
-        question_shortlist = build_mechanism_story_review_shortlist(
-            feature,
-            analyst_output_claim_payload=analyst_output_payload or None,
-            process_variant_payload=process_variant_payload or None,
-            process_participation_payload=process_participation_payload or None,
-            variant_feature_challenge_payload=variant_feature_challenge_payload or None,
-            analyst_question_payload=analyst_question_payload,
-            limit=max(5, len(records)),
-        )
-        if question_shortlist.get("analyst_question_binding_state") == "BOUND_EXPLICIT_FOCUS_DIMENSIONS":
-            attention_order = {
-                str(row.get("source_mechanism_review_ref") or ""): index
-                for index, row in enumerate(question_shortlist.get("shortlist") or [])
-                if isinstance(row, dict) and str(row.get("source_mechanism_review_ref") or "")
-            }
-            if attention_order:
-                baseline_index = {
-                    str(row.get("grammar_stable_variant_feature_delta_id") or ""): index
-                    for index, row in enumerate(records)
-                }
-                records.sort(
-                    key=lambda row: (
-                        0 if str(row.get("grammar_stable_variant_feature_delta_id") or "") in attention_order else 1,
-                        attention_order.get(
-                            str(row.get("grammar_stable_variant_feature_delta_id") or ""),
-                            baseline_index.get(str(row.get("grammar_stable_variant_feature_delta_id") or ""), len(records)),
-                        ),
-                        baseline_index.get(str(row.get("grammar_stable_variant_feature_delta_id") or ""), len(records)),
-                    )
-                )
-    rendered = 0
+    rendered = len(mechanism_highlights)
     for row in records:
         team_ids = [str(v) for v in row.get("team_identity_candidate_ids") or [] if str(v)]
         if not team_ids:
@@ -4640,7 +4618,7 @@ def build_hp_football_report_tr(
             f"{resolved} karşılaştırılabilir örneğin sonuçları aynı olmadı; bu nedenle asıl inceleme noktası ilk aksiyon değil, bağlantının hangi koşulda devam edip hangi koşulda koptuğu."
         )
         rendered += 1
-        if rendered >= 3:
+        if rendered >= 4:
             break
     if not rendered:
         lines.append("- Aynı futbol probleminin farklı sonuçlara gittiği yeterince güçlü tekrar eden bir bağlantı bulunmadı.")

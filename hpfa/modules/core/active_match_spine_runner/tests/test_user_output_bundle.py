@@ -3456,6 +3456,47 @@ def test_standard_human_reports_forward_question_to_attention_selector(tmp_path,
     assert captured == [question, question]
 
 
+
+
+
+def test_process_family_aliases_collapse_to_one_canonical_key() -> None:
+    assert user_output_bundle._football_family_key("POSITIONAL_ATTACK_CANDIDATE") == "POSITIONAL_ATTACK"
+    assert user_output_bundle._football_family_key("positional attacks") == "POSITIONAL_ATTACK"
+    assert user_output_bundle._football_family_key("counterattacks") == "COUNTERATTACK"
+    assert user_output_bundle._football_family_key("set piece attacks") == "SET_PIECE_ATTACK"
+
+def test_turkish_family_label_normalizes_provider_plural_aliases() -> None:
+    assert user_output_bundle._football_family_label("positional attacks", "tr") == "yerleşik hücum"
+    assert user_output_bundle._football_family_label("counterattacks", "tr") == "kontra atak"
+    assert user_output_bundle._football_family_label("set piece attacks", "tr") == "duran top hücumu"
+
+def test_short_professional_report_uses_source_bound_mechanism_story_highlights(tmp_path, monkeypatch):
+    spine = _full_spine(current_artifacts=[])
+
+    monkeypatch.setattr(
+        user_output_bundle,
+        "_human_mechanism_cards",
+        lambda *a, **k: [
+            "MEKANİZMA KARTI 1 | SINIF=ANA MEKANİZMA ADAYI | ...",
+            "İnceleme noktası 1: Alpha, ilk yarı. pas arası → pas bağlantısı iki ayrı bölümde tekrar görülüyor. Karşılaştırılabilir varyantlar farklı görünür sonuçlara gidiyor.",
+            "Kanıt notu: bağımsızlık kanıtlanmadı.",
+        ],
+    )
+    monkeypatch.setattr(
+        user_output_bundle,
+        "_human_match_story_mechanism_highlights",
+        lambda cards, language, limit=4: [
+            "İnceleme noktası 1: Alpha, ilk yarı. pas arası → pas bağlantısı iki ayrı bölümde tekrar görülüyor. Karşılaştırılabilir varyantlar farklı görünür sonuçlara gidiyor."
+        ],
+    )
+
+    report = user_output_bundle.build_hp_football_report_tr(tmp_path, spine)
+
+    assert "TEKRAR EDEN YOLLAR VE VARYANTLAR" in report
+    assert "İnceleme noktası 1: Alpha" in report
+    assert "MEKANİZMA KARTI 1" not in report
+    assert "Kanıt notu:" not in report
+
 def test_standard_user_outputs_forwards_question_to_human_reports(tmp_path, monkeypatch):
     spine = _full_spine(current_artifacts=[])
     question = {
