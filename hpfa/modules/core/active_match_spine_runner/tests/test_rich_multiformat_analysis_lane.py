@@ -1305,6 +1305,22 @@ def test_c03_builds_partial_order_process_development_and_anchor_path_without_tr
     assert all(row["causal_process_credit_truth"] is False for row in participation)
     assert signature["visible_on_ball_profile"]["actor_family_unresolved_temporal_layer_n"] == 0
     assert signature["visible_on_ball_profile"]["actor_family_participation_is_causal_process_credit"] is False
+    actor_location = signature["visible_actor_location_participation_proxy"]
+    assert actor_location["eligible_temporal_layer_n"] == 1
+    assert actor_location["pass_only_temporal_layer_excluded_n"] == 1
+    assert actor_location["coordinate_is_tracking_truth"] is False
+    assert actor_location["coordinate_is_average_position_truth"] is False
+    assert actor_location["pass_coordinate_used_as_actor_location"] is False
+    assert actor_location["profiles"] == [{
+        "actor_identity_candidate_id": "actor_2",
+        "eligible_temporal_layer_n": 1,
+        "anchor_observation_n": 1,
+        "median_anchor_x_provider_units_candidate": 50.0,
+        "median_anchor_y_provider_units_candidate": 40.0,
+        "provider_zone_layer_counts": {"FINAL_THIRD": 1},
+        "actor_location_is_average_position_truth": False,
+        "actor_location_is_tracking_truth": False,
+    }]
     assert signature["process_start_zone_candidates"] == ["MIDDLE_THIRD"]
     assert signature["process_end_zone_candidates"] == ["FINAL_THIRD"]
     assert signature["zone_layer_path_candidates"] == [["MIDDLE_THIRD"], ["FINAL_THIRD"]]

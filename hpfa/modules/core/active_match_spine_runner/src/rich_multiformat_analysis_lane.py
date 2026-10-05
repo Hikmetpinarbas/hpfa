@@ -3271,6 +3271,73 @@ def _construct_c03(
             if layer_unresolved:
                 unresolved_actor_family_layer_n += 1
 
+        actor_location_eligible_families = {"CARRY", "DRIBBLE", "SHOT", "DUEL", "TACKLE", "RECOVERY"}
+        actor_location_points: dict[str, list[tuple[float, float, tuple[str, ...]]]] = defaultdict(list)
+        actor_location_eligible_temporal_layer_n = 0
+        pass_only_temporal_layer_excluded_n = 0
+        for layer in layers:
+            actors = [str(value) for value in (layer.get("actor_identity_candidate_ids") or []) if value]
+            families = {str(value) for value in (layer.get("action_family_candidates") or []) if value}
+            anchors = [
+                anchor for anchor in (layer.get("admitted_annotation_anchor_candidates") or [])
+                if isinstance(anchor, dict)
+            ]
+            if len(actors) != 1 or len(anchors) != 1:
+                continue
+            if families and families.issubset({"PASS"}):
+                pass_only_temporal_layer_excluded_n += 1
+                continue
+            if not actor_location_eligible_families.intersection(families):
+                continue
+            x = _as_number(anchors[0].get("x"))
+            y = _as_number(anchors[0].get("y"))
+            if x is None or y is None:
+                continue
+            actor_location_eligible_temporal_layer_n += 1
+            zones = tuple(sorted({
+                str(value) for value in (layer.get("provider_zone_candidates") or []) if value
+            }))
+            actor_location_points[actors[0]].append((x, y, zones))
+
+        def _median_candidate(values: list[float]) -> float | None:
+            if not values:
+                return None
+            ordered = sorted(values)
+            n = len(ordered)
+            middle = n // 2
+            if n % 2:
+                return float(ordered[middle])
+            return float((ordered[middle - 1] + ordered[middle]) / 2.0)
+
+        actor_location_profiles: list[dict[str, Any]] = []
+        for actor_id, points in sorted(actor_location_points.items()):
+            zone_counts: Counter[str] = Counter()
+            for _, _, zones in points:
+                zone_counts.update(zones)
+            actor_location_profiles.append({
+                "actor_identity_candidate_id": actor_id,
+                "eligible_temporal_layer_n": len(points),
+                "anchor_observation_n": len(points),
+                "median_anchor_x_provider_units_candidate": _median_candidate([point[0] for point in points]),
+                "median_anchor_y_provider_units_candidate": _median_candidate([point[1] for point in points]),
+                "provider_zone_layer_counts": dict(sorted(zone_counts.items())),
+                "actor_location_is_average_position_truth": False,
+                "actor_location_is_tracking_truth": False,
+            })
+
+        visible_actor_location_participation_proxy = {
+            "eligible_action_family_basis": sorted(actor_location_eligible_families),
+            "eligible_temporal_layer_n": actor_location_eligible_temporal_layer_n,
+            "pass_only_temporal_layer_excluded_n": pass_only_temporal_layer_excluded_n,
+            "profiles": actor_location_profiles,
+            "coordinate_is_tracking_truth": False,
+            "coordinate_is_average_position_truth": False,
+            "pass_coordinate_used_as_actor_location": False,
+            "off_ball_location_truth": False,
+            "team_shape_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_ACTOR_LOCATION_PARTICIPATION_PROXY_ONLY",
+        }
+
         on_ball_profile = {
             "visible_on_ball_temporal_layer_n": len(on_ball_layers),
             "visible_on_ball_family_layer_counts": on_ball_family_layer_counts,
@@ -3338,6 +3405,7 @@ def _construct_c03(
             "action_family_layer_counts": dict(sorted(action_family_layer_counts.items())),
             "pass_carry_layer_mix": pass_carry_mix,
             "visible_on_ball_profile": on_ball_profile,
+            "visible_actor_location_participation_proxy": visible_actor_location_participation_proxy,
             "semantic_facet_profile": {
                 "progression_layer_counts": dict(sorted(progression_layer_counts.items())),
                 "direction_layer_counts": dict(sorted(direction_layer_counts.items())),
