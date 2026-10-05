@@ -120,6 +120,115 @@ def _professional_claim_records(payload: dict[str, Any]) -> list[dict[str, Any]]
     return records
 
 
+
+def _team_name_map(identity_payload: dict[str, Any]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for row in identity_payload.get("team_identity_candidates") or []:
+        if not isinstance(row, dict):
+            continue
+        ref = str(row.get("team_identity_candidate_id") or "").strip()
+        if not ref:
+            continue
+        aliases = [str(v).strip() for v in (row.get("team_aliases_raw") or []) if str(v).strip()]
+        name = aliases[0] if aliases else str(row.get("team_normalized_key") or ref)
+        if " (" in name:
+            name = name.split(" (", 1)[0]
+        result[ref] = name.strip().title()
+    return result
+
+
+def _score_text(score_state: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for name, value in score_state.items():
+        label = str(name).split(" (", 1)[0].strip()
+        parts.append(f"{label} {value}")
+    return " – ".join(parts)
+
+
+def _process_label(values: list[Any]) -> str:
+    mapping = {
+        "POSITIONAL_ATTACK_CANDIDATE": "yerleşik hücum adayı",
+        "TRANSITION_ATTACK_CANDIDATE": "geçiş hücumu adayı",
+        "SET_PIECE_ATTACK_CANDIDATE": "duran top hücumu adayı",
+    }
+    labels = [mapping.get(str(v), str(v).replace("_CANDIDATE", "").replace("_", " ").lower()) for v in values]
+    return ", ".join(labels) if labels else "görünür sekans adayı"
+
+
+def _match_local_descriptive_records(
+    safe_payload: dict[str, Any],
+    identity_payload: dict[str, Any],
+) -> list[dict[str, Any]]:
+    team_names = _team_name_map(identity_payload)
+    grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+    for row in safe_payload.get("safe_finding_admission_decisions") or []:
+        if not isinstance(row, dict) or row.get("match_local_descriptive_finding_admitted") is not True:
+            continue
+        context = row.get("branch_preoutcome_context_enrichment") or {}
+        score_state = context.get("score_state_candidate") or {}
+        key = (
+            tuple(row.get("variant_feature_challenge_family_refs") or []),
+            context.get("team_identity_candidate_id"),
+            context.get("period_candidate"),
+            tuple(sorted(score_state.items())),
+            tuple(context.get("provider_process_family_candidates") or []),
+            tuple(sorted((context.get("anchor_action_family_counts") or {}).items())),
+        )
+        grouped.setdefault(key, []).append(row)
+
+    records: list[dict[str, Any]] = []
+    for key, rows in grouped.items():
+        family_refs, team_ref, period, score_items, process_values, anchor_items = key
+        score_state = dict(score_items)
+        team_name = team_names.get(str(team_ref), "Takım")
+        period_label = f"{period}. devre" if str(period).isdigit() else str(period or "devre bilinmiyor")
+        process_label = _process_label(list(process_values))
+        anchor_map = {"PASS": "pas", "CARRY": "top taşıma", "SHOT": "şut", "CROSS": "orta"}
+        anchor_actions = ", ".join(anchor_map.get(str(name), str(name).replace("_", " ").lower()) for name, count in anchor_items if int(count or 0) > 0) or "aksiyon"
+        episode_spread = max(int(row.get("variant_support_episode_spread_max_visible_count") or 0) for row in rows)
+        actor_spread = max(int(row.get("actor_spread_count") or 0) for row in rows)
+        times = sorted({
+            (row.get("branch_preoutcome_context_enrichment") or {}).get("shared_anchor_time_candidate")
+            for row in rows
+            if (row.get("branch_preoutcome_context_enrichment") or {}).get("shared_anchor_time_candidate") is not None
+        })
+        horizon_sensitive = any(
+            "VARIANT_FEATURE_CHALLENGE_CONSEQUENCE_HORIZON_SENSITIVE"
+            in (row.get("decision_reasons") or [])
+            for row in rows
+        )
+        sentence_tr = (
+            f"{team_name}, {period_label} ve {_score_text(score_state)} skor bağlamında, "
+            f"sağlayıcının {process_label} olarak işaretlediği sekanslarda {anchor_actions} aksiyonu çevresinde "
+            "hem başarılı hem başarısız etiketli görünür dallar gösterdi. "
+            f"Aynı görünür varyant ailesi {episode_spread} farklı sekans adayında görüldü. "
+            + ("Gözlem 5–8–12 saniyelik sonuç penceresine duyarlı. " if horizon_sensitive else "")
+            + "Bu yalnız maç-içi görünür sekans bulgusudur; taktik gerçek, neden, bağımsız tekrar veya gerçek başarı olasılığı değildir."
+        )
+        records.append({
+            "team_identity_candidate_id": team_ref,
+            "team_name": team_name,
+            "period_candidate": period,
+            "score_state_candidate": score_state,
+            "process_family_candidates": list(process_values),
+            "anchor_action_family_counts": dict(anchor_items),
+            "variant_family_refs": list(family_refs),
+            "source_handoff_refs": sorted(str(row.get("source_safe_finding_handoff_ref") or "") for row in rows),
+            "source_handoff_count": len(rows),
+            "anchor_time_candidates": times,
+            "episode_spread_max_visible_count": episode_spread,
+            "actor_spread_max_visible_count": actor_spread,
+            "horizon_sensitive": horizon_sensitive,
+            "sentence_tr": sentence_tr,
+            "scope": "MATCH_LOCAL_OBSERVED_MECHANISM_FINDING_ONLY",
+            "professional_emit_allowed": False,
+            "statistical_generalization_allowed": False,
+            "causal_inference_allowed": False,
+            "tactical_truth_allowed": False,
+            "record_creates_new_evidence": False,
+        })
+    return records
+
 def build_presentation_view_model(
     full_spine: dict[str, Any],
     *,
@@ -127,6 +236,8 @@ def build_presentation_view_model(
     analyst_report_en: str,
     mechanism_graph_payload: dict[str, Any],
     analyst_output_claim_payload: dict[str, Any] | None = None,
+    safe_finding_payload: dict[str, Any] | None = None,
+    identity_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cards = [
         dict(card)
@@ -141,6 +252,9 @@ def build_presentation_view_model(
     claim_payload = analyst_output_claim_payload or {}
     fact_records = _fact_review_records(claim_payload)
     professional_claims = _professional_claim_records(claim_payload)
+    descriptive_findings = _match_local_descriptive_records(
+        safe_finding_payload or {}, identity_payload or {}
+    )
 
     return {
         "module_id": MODULE_ID,
@@ -169,6 +283,8 @@ def build_presentation_view_model(
             "fact_only_render_is_professional_finding": False,
         },
         "professional_claim_records": professional_claims,
+        "match_local_descriptive_findings": descriptive_findings,
+        "match_local_descriptive_finding_count": len(descriptive_findings),
         "fact_review_records": fact_records,
         "mechanism_cards": cards,
         "mechanism_card_count": len(cards),
@@ -204,6 +320,7 @@ def render_professional_html(view_model: dict[str, Any], *, language: str = "tr"
         if isinstance(row, dict)
     ]
     claim_summary = view_model.get("claim_admission_summary") or {}
+    descriptive_findings = [row for row in view_model.get("match_local_descriptive_findings") or [] if isinstance(row, dict)]
 
     card_html: list[str] = []
     for card in cards:
@@ -259,6 +376,15 @@ def render_professional_html(view_model: dict[str, Any], *, language: str = "tr"
             + (f"<h4>Required qualifiers</h4><ul>{_list_html(qualifiers)}</ul>" if qualifiers else "")
             + "</details>"
         )
+
+    descriptive_html = "".join(
+        "<article class=\"card\">"
+        f"<h3>{html.escape(str(row.get('team_name') or 'Takım'))}</h3>"
+        f"<p>{html.escape(str(row.get('sentence_tr') or ''))}</p>"
+        "<div class=\"boundary-note\">Maç-içi görünür mekanizma bulgusu · professional EMIT değildir · taktik gerçek veya nedensellik değildir.</div>"
+        "</article>"
+        for row in descriptive_findings
+    )
 
     professional_claim_html = ""
     if professional_claims:
@@ -347,6 +473,12 @@ footer {{ margin-top: 38px; border-top: 1px solid #d7d7d2; padding-top: 16px; co
 <h2>Analyst report</h2>
 <div class="boundary-note">{escaped_report_boundary}</div>
 <div class="report">{escaped_report}</div>
+</section>
+
+<section>
+<h2>Maç-içi görünür mekanizma bulguları</h2>
+<div class="boundary-note">Bu bölüm yalnız maç içindeki görünür sekans varyasyonlarını özetler. Profesyonel claim, taktik gerçek, neden, bağımsız tekrar veya gerçek başarı olasılığı değildir.</div>
+<div class="grid">{descriptive_html if descriptive_html else '<article class="card">Bu maçta sıkı eşikleri geçen maç-içi görünür mekanizma bulgusu yok.</article>'}</div>
 </section>
 
 <section>
