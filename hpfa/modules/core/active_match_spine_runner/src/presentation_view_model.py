@@ -283,6 +283,56 @@ _SAFE_MEANING_TR = {
 }
 
 
+_ANALYST_ACTION_TR = {
+    "REVIEW_BRANCH_EXAMPLES_AND_USE_ONLY_AS_MATCH_LOCAL_VARIATION_CUE": (
+        "Şube örneklerini incele; bunları yalnız bu maça ait görünür varyasyon ipucu olarak kullan."
+    ),
+}
+
+
+def _humanize_analyst_action(source_action: str, fallback: str) -> str:
+    if not source_action:
+        return fallback
+    mapped = _ANALYST_ACTION_TR.get(source_action)
+    if mapped:
+        return mapped
+    if source_action.isupper() and "_" in source_action:
+        return fallback
+    return source_action
+
+
+def _group_analyst_explanations(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, ...], dict[str, Any]] = {}
+    for record in records:
+        key = (
+            str(record.get("question_tr") or ""),
+            str(record.get("epistemic_state") or ""),
+            str(record.get("why_tr") or ""),
+            str(record.get("required_observation_tr") or ""),
+            str(record.get("weaker_safe_statement_tr") or ""),
+            str(record.get("analyst_action_tr") or ""),
+            str(record.get("claim_ceiling") or ""),
+        )
+        current = grouped.get(key)
+        if current is None:
+            current = dict(record)
+            current["affected_question_ids"] = []
+            current["source_reason_refs"] = []
+            current["affected_question_count"] = 0
+            grouped[key] = current
+        question_id = str(record.get("question_id") or "").strip()
+        if question_id and question_id not in current["affected_question_ids"]:
+            current["affected_question_ids"].append(question_id)
+        for reason in record.get("source_reason_refs") or []:
+            reason_text = str(reason).strip()
+            if reason_text and reason_text not in current["source_reason_refs"]:
+                current["source_reason_refs"].append(reason_text)
+        current["affected_question_count"] += 1
+        current["creates_new_evidence"] = False
+        current["can_authorize_emit"] = False
+    return list(grouped.values())
+
+
 def _unanswered_question_explanations(
     claim_payload: dict[str, Any],
     safe_payload: dict[str, Any],
@@ -329,8 +379,7 @@ def _unanswered_question_explanations(
             "Daha zayıf güvenli ifade mevcut kanıttan üretilemiyor.",
         )
         source_action = str(contract.get("render_analyst_action") or "").strip()
-        if source_action:
-            action_tr = source_action
+        action_tr = _humanize_analyst_action(source_action, action_tr)
 
         records.append({
             "question_id": contract_id or source_ref or "UNKNOWN",
@@ -346,6 +395,7 @@ def _unanswered_question_explanations(
             "required_observation_tr": required_tr,
             "weaker_safe_statement_tr": weaker_tr,
             "analyst_action_tr": action_tr,
+            "source_analyst_action_ref": source_action or None,
             "claim_ceiling": contract.get("claim_scope") or "INHERITS_UPSTREAM_NO_STRENGTHENING",
             "creates_new_evidence": False,
             "can_authorize_emit": False,
@@ -474,6 +524,7 @@ def build_presentation_view_model(
         safe_finding_payload or {},
         full_spine,
     )
+    analyst_unanswered_explanations = _group_analyst_explanations(unanswered_explanations)
 
     return {
         "module_id": MODULE_ID,
@@ -504,6 +555,8 @@ def build_presentation_view_model(
         "professional_claim_records": professional_claims,
         "unanswered_question_explanations": unanswered_explanations,
         "unanswered_question_explanation_count": len(unanswered_explanations),
+        "analyst_unanswered_question_explanations": analyst_unanswered_explanations,
+        "analyst_unanswered_question_explanation_count": len(analyst_unanswered_explanations),
         "match_local_descriptive_findings": descriptive_findings,
         "match_local_descriptive_finding_count": len(descriptive_findings),
         "fact_review_records": fact_records,
@@ -543,7 +596,11 @@ def render_professional_html(view_model: dict[str, Any], *, language: str = "tr"
     claim_summary = view_model.get("claim_admission_summary") or {}
     descriptive_findings = [row for row in view_model.get("match_local_descriptive_findings") or [] if isinstance(row, dict)]
     unanswered_explanations = [
-        row for row in view_model.get("unanswered_question_explanations") or []
+        row for row in (
+            view_model.get("analyst_unanswered_question_explanations")
+            or view_model.get("unanswered_question_explanations")
+            or []
+        )
         if isinstance(row, dict)
     ]
 
@@ -606,7 +663,11 @@ def render_professional_html(view_model: dict[str, Any], *, language: str = "tr"
         "<article class=\"card\">"
         f"<h3>{html.escape(str(row.get('question_tr') or 'Soru'))}</h3>"
         f"<div class=\"meta\">Durum: {html.escape(str(row.get('epistemic_state') or 'UNKNOWN'))}</div>"
-        f"<p><strong>Neden?</strong> {html.escape(str(row.get('why_tr') or ''))}</p>"
+        + (
+            f"<div class=\"meta\">{html.escape(str(row.get('affected_question_count')))} adayı etkiliyor</div>"
+            if int(row.get("affected_question_count") or 0) > 1 else ""
+        )
+        + f"<p><strong>Neden?</strong> {html.escape(str(row.get('why_tr') or ''))}</p>"
         f"<p><strong>Ne eksik?</strong> {html.escape(str(row.get('required_observation_tr') or ''))}</p>"
         f"<p><strong>Güvenli olarak ne söyleyebiliriz?</strong> {html.escape(str(row.get('weaker_safe_statement_tr') or ''))}</p>"
         f"<p><strong>Analist ne yapmalı?</strong> {html.escape(str(row.get('analyst_action_tr') or ''))}</p>"

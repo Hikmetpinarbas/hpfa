@@ -432,3 +432,99 @@ def test_review_required_without_claim_contracts_still_explains_zero_output_with
     assert row["why_tr"] == "Profesyonel bulgu üretilememesinin daha özel nedeni mevcut kanıttan güvenle çözülemiyor."
     assert row["creates_new_evidence"] is False
     assert row["can_authorize_emit"] is False
+
+
+def test_source_analyst_action_code_is_preserved_but_humanized_for_analyst():
+    claim_payload = {
+        "status": "REVIEW_REQUIRED",
+        "analyst_output_contracts": [{
+            "analyst_output_contract_id": "aoc_action_human",
+            "source_safe_finding_handoff_ref": "sfh_action_human",
+            "professional_emit_allowed": False,
+            "safe_finding_admission_decision": "DOWNGRADE",
+            "evidence_sufficiency_state": "PARTIAL",
+            "blocking_dimensions": ["DEPENDENCY_INDEPENDENCE_NOT_PROVEN"],
+            "safe_output_meaning": "MATCH_LOCAL_SHARED_ANCHOR_VISIBLE_OUTCOME_VARIATION_ONLY",
+            "render_analyst_action": "REVIEW_BRANCH_EXAMPLES_AND_USE_ONLY_AS_MATCH_LOCAL_VARIATION_CUE",
+        }],
+        "source_bound_render_contracts": [],
+    }
+    safe_payload = {
+        "safe_finding_admission_decisions": [{
+            "source_safe_finding_handoff_ref": "sfh_action_human",
+            "decision": "DOWNGRADE",
+            "decision_reasons": ["DEPENDENCY_INDEPENDENCE_NOT_PROVEN"],
+            "claim_output_allowed": False,
+        }]
+    }
+
+    view = build_presentation_view_model(
+        {"status": "REVIEW_REQUIRED"},
+        analyst_report_tr="",
+        analyst_report_en="",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload=claim_payload,
+        safe_finding_payload=safe_payload,
+    )
+
+    row = view["unanswered_question_explanations"][0]
+    assert row["source_analyst_action_ref"] == "REVIEW_BRANCH_EXAMPLES_AND_USE_ONLY_AS_MATCH_LOCAL_VARIATION_CUE"
+    assert row["analyst_action_tr"] == (
+        "Şube örneklerini incele; bunları yalnız bu maça ait görünür varyasyon ipucu olarak kullan."
+    )
+    assert "_" not in row["analyst_action_tr"]
+
+
+def test_analyst_facing_explanations_group_identical_limits_without_losing_raw_records():
+    claim_payload = {
+        "status": "REVIEW_REQUIRED",
+        "analyst_output_contracts": [
+            {
+                "analyst_output_contract_id": f"aoc_group_{idx}",
+                "source_safe_finding_handoff_ref": f"sfh_group_{idx}",
+                "professional_emit_allowed": False,
+                "safe_finding_admission_decision": "DOWNGRADE",
+                "evidence_sufficiency_state": "PARTIAL",
+                "blocking_dimensions": ["DEPENDENCY_INDEPENDENCE_NOT_PROVEN"],
+                "safe_output_meaning": "MATCH_LOCAL_SHARED_ANCHOR_VISIBLE_OUTCOME_VARIATION_ONLY",
+                "render_analyst_action": "REVIEW_BRANCH_EXAMPLES_AND_USE_ONLY_AS_MATCH_LOCAL_VARIATION_CUE",
+                "claim_scope": "MATCH_LOCAL_OBSERVED_VARIATION_CUE_ONLY",
+            }
+            for idx in range(2)
+        ],
+        "source_bound_render_contracts": [],
+    }
+    safe_payload = {
+        "safe_finding_admission_decisions": [
+            {
+                "source_safe_finding_handoff_ref": f"sfh_group_{idx}",
+                "decision": "DOWNGRADE",
+                "decision_reasons": ["DEPENDENCY_INDEPENDENCE_NOT_PROVEN"],
+                "claim_output_allowed": False,
+            }
+            for idx in range(2)
+        ]
+    }
+
+    view = build_presentation_view_model(
+        {"status": "REVIEW_REQUIRED"},
+        analyst_report_tr="",
+        analyst_report_en="",
+        mechanism_graph_payload={"cards": []},
+        analyst_output_claim_payload=claim_payload,
+        safe_finding_payload=safe_payload,
+    )
+
+    assert view["unanswered_question_explanation_count"] == 2
+    assert view["analyst_unanswered_question_explanation_count"] == 1
+    grouped = view["analyst_unanswered_question_explanations"][0]
+    assert grouped["affected_question_count"] == 2
+    assert grouped["affected_question_ids"] == ["aoc_group_0", "aoc_group_1"]
+    assert grouped["creates_new_evidence"] is False
+    assert grouped["can_authorize_emit"] is False
+
+    rendered = render_professional_html(view, language="tr")
+    assert "2 adayı etkiliyor" in rendered
+    assert rendered.count(
+        "Görülen örneklerin birbirinden bağımsız olduğu kanıtlanmadığı için tekrar gücü yükseltilemiyor."
+    ) == 1
