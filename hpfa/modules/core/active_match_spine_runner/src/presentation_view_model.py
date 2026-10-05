@@ -363,6 +363,24 @@ def _unanswered_question_explanations(
         for value in (full_spine.get("review_hits") or [])
         if str(value).strip()
     ]
+    if (
+        str(full_spine.get("status") or "").upper() == "REVIEW_REQUIRED"
+        or str(claim_payload.get("status") or "").upper() == "REVIEW_REQUIRED"
+    ) and not hard_blocks:
+        return [{
+            "question_id": "report_level_zero_output",
+            "question_tr": "Bu raporda neden profesyonel bulgu üretilemedi?",
+            "epistemic_state": "REVIEW_REQUIRED",
+            "why_tr": "Profesyonel bulgu üretilememesinin daha özel nedeni mevcut kanıttan güvenle çözülemiyor.",
+            "source_reason_refs": review_hits,
+            "required_observation_tr": "Gerekli ek gözlem mevcut kanıttan güvenle belirlenemiyor.",
+            "weaker_safe_statement_tr": "Bu rapor mevcut haliyle yalnız inceleme yüzeyi olarak güvenle kullanılabilir.",
+            "analyst_action_tr": "Daha özel neden çözülene kadar profesyonel bulgu üretme ve mevcut kanıtı yeniden incele.",
+            "claim_ceiling": "NO_PROFESSIONAL_FINDING_OUTPUT",
+            "creates_new_evidence": False,
+            "can_authorize_emit": False,
+        }]
+
     if safe_payload.get("status") == "FAIL_CLOSED" or hard_blocks:
         reasons = hard_blocks or review_hits
         first = reasons[0] if reasons else ""

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 MODULE_ID = "active_match_full_system_match_diagnostic_v1"
 OUTPUT_JSON = "active_match_full_system_match_diagnostic_v1.json"
 OUTPUT_TXT = "active_match_full_system_match_diagnostic_v1.txt"
+FAILURE_MEMORY_JSON = "hpfa_failure_memory_v1.json"
 UNKNOWN = "UNKNOWN"
 
 
@@ -31,6 +34,146 @@ def _status(payload: dict[str, Any], default: str = "UNKNOWN") -> str:
         or payload.get("decision")
         or default
     ).upper()
+
+
+def _failure_memory_candidates(diagnostic: dict[str, Any]) -> list[dict[str, Any]]:
+    run_identity = diagnostic.get("run_identity") or {}
+    exact_head = str(run_identity.get("head") or UNKNOWN)
+    runtime_binding = str(run_identity.get("runtime_authority") or UNKNOWN)
+    match_package_fingerprint = str(
+        run_identity.get("match_package_fingerprint") or UNKNOWN
+    )
+
+    rows: list[dict[str, Any]] = []
+    for check in diagnostic.get("cross_artifact_consistency") or []:
+        if not isinstance(check, dict):
+            continue
+        if str(check.get("status") or "").upper() != "REVIEW_REQUIRED":
+            continue
+        violated_contract = str(check.get("check") or UNKNOWN)
+        reason = str(check.get("reason") or "REVIEW_REQUIRED")
+        identity_payload = {
+            "failure_family": "CROSS_ARTIFACT_CONSISTENCY_REVIEW",
+            "violated_contract": violated_contract,
+            "runtime_binding": runtime_binding,
+            "match_package_fingerprint": match_package_fingerprint,
+            "failure_reason_codes": [reason],
+        }
+        failure_id = "fm_" + hashlib.sha256(
+            json.dumps(identity_payload, sort_keys=True, ensure_ascii=True).encode("utf-8")
+        ).hexdigest()[:16]
+        rows.append({
+            "failure_id": failure_id,
+            "failure_family": "CROSS_ARTIFACT_CONSISTENCY_REVIEW",
+            "affected_capability": "cross_artifact_consistency",
+            "violated_contract": violated_contract,
+            "exact_head": exact_head,
+            "runtime_binding": runtime_binding,
+            "match_package_fingerprint": match_package_fingerprint,
+            "first_failed_stage": violated_contract,
+            "failure_reason_codes": [reason],
+            "claim_risk": "CLAIM_INTEGRITY_REVIEW_REQUIRED",
+            "repair_owner": "CURRENT_DIAGNOSTIC_OWNER_REVIEW_REQUIRED",
+            "repair_description": UNKNOWN,
+            "regression_test_ref": UNKNOWN,
+            "resolution_state": "OPEN_REVIEW",
+            "reoccurrence_count": 1,
+            "creates_new_evidence": False,
+            "creates_acceptance_authority": False,
+        })
+    return rows
+
+
+def _merge_failure_memory(
+    existing: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+    *,
+    observed_at: str,
+) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+
+    for row in existing:
+        if not isinstance(row, dict):
+            continue
+        failure_id = str(row.get("failure_id") or "").strip()
+        if not failure_id:
+            continue
+        if failure_id not in merged:
+            order.append(failure_id)
+        merged[failure_id] = dict(row)
+
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        failure_id = str(candidate.get("failure_id") or "").strip()
+        if not failure_id:
+            continue
+        previous = merged.get(failure_id)
+        if previous is None:
+            row = dict(candidate)
+            row["first_seen_at"] = observed_at
+            row["last_seen_at"] = observed_at
+            row["reoccurrence_count"] = int(row.get("reoccurrence_count") or 1)
+            merged[failure_id] = row
+            order.append(failure_id)
+            continue
+
+        row = dict(previous)
+        first_seen = str(previous.get("first_seen_at") or observed_at)
+        previous_count = previous.get("reoccurrence_count")
+        if not isinstance(previous_count, int) or isinstance(previous_count, bool):
+            previous_count = 1
+        row.update(candidate)
+        row["first_seen_at"] = first_seen
+        row["last_seen_at"] = observed_at
+        row["reoccurrence_count"] = previous_count + 1
+        row["creates_new_evidence"] = False
+        row["creates_acceptance_authority"] = False
+        merged[failure_id] = row
+
+    return [merged[failure_id] for failure_id in order]
+
+
+def write_failure_memory_registry(
+    root: Path,
+    diagnostic: dict[str, Any],
+    *,
+    observed_at: str | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    root = Path(root)
+    path = root / FAILURE_MEMORY_JSON
+    existing_records: list[dict[str, Any]] = []
+    if path.is_file():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        if isinstance(payload, dict) and isinstance(payload.get("records"), list):
+            existing_records = [
+                dict(row) for row in payload["records"] if isinstance(row, dict)
+            ]
+
+    timestamp = observed_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    candidates = _failure_memory_candidates(diagnostic)
+    merged = _merge_failure_memory(
+        existing_records,
+        candidates,
+        observed_at=timestamp,
+    )
+    payload = {
+        "module_id": "hpfa_failure_memory_v1",
+        "record_count": len(merged),
+        "records": merged,
+        "failure_memory_creates_new_evidence": False,
+        "failure_memory_creates_acceptance_authority": False,
+        "production_release": False,
+    }
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path, payload
 
 
 def _artifact_ledger(full_spine: dict[str, Any]) -> set[str]:
@@ -1354,12 +1497,15 @@ def main() -> int:
         head=args.head,
     )
     out_json, out_txt = write_outputs(root, diagnostic)
+    failure_memory_path, failure_memory = write_failure_memory_registry(root, diagnostic)
     print(
         json.dumps(
             {
                 "status": diagnostic["status"],
                 "out_json": str(out_json),
                 "out_txt": str(out_txt),
+                "failure_memory": str(failure_memory_path),
+                "failure_memory_record_count": failure_memory["record_count"],
                 "production_release": False,
             },
             ensure_ascii=False,

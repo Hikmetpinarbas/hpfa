@@ -208,3 +208,129 @@ def test_mechanism_diagnostic_preserves_all_eligible_candidates_without_fixed_to
     ]
     assert module._top_mechanism_candidates(tmp_path, limit=3)[0]["candidate_id"] == "m6"
     assert len(module._top_mechanism_candidates(tmp_path, limit=3)) == 3
+
+
+def test_failure_memory_candidate_is_normalized_from_consistency_review(tmp_path: Path) -> None:
+    module = _load_module()
+    diagnostic = {
+        "run_identity": {
+            "head": "abc123",
+            "runtime_authority": "/runtime/active_single_match/current",
+        },
+        "cross_artifact_consistency": [{
+            "check": "machine_vs_human_intelligence_chain_count",
+            "status": "REVIEW_REQUIRED",
+            "reason": "machine_and_human_counts_disagree",
+        }],
+    }
+
+    rows = module._failure_memory_candidates(diagnostic)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["failure_id"].startswith("fm_")
+    assert row["failure_family"] == "CROSS_ARTIFACT_CONSISTENCY_REVIEW"
+    assert row["violated_contract"] == "machine_vs_human_intelligence_chain_count"
+    assert row["exact_head"] == "abc123"
+    assert row["runtime_binding"] == "/runtime/active_single_match/current"
+    assert row["match_package_fingerprint"] == "UNKNOWN"
+    assert row["failure_reason_codes"] == ["machine_and_human_counts_disagree"]
+    assert row["resolution_state"] == "OPEN_REVIEW"
+    assert row["reoccurrence_count"] == 1
+    assert row["creates_new_evidence"] is False
+    assert row["creates_acceptance_authority"] is False
+
+
+def test_failure_memory_merge_increments_reoccurrence_without_changing_identity() -> None:
+    module = _load_module()
+    candidate = {
+        "failure_id": "fm_same",
+        "failure_family": "CROSS_ARTIFACT_CONSISTENCY_REVIEW",
+        "affected_capability": "cross_artifact_consistency",
+        "violated_contract": "check_a",
+        "exact_head": "newhead",
+        "runtime_binding": "/runtime/current",
+        "match_package_fingerprint": "UNKNOWN",
+        "first_failed_stage": "check_a",
+        "failure_reason_codes": ["reason_a"],
+        "claim_risk": "CLAIM_INTEGRITY_REVIEW_REQUIRED",
+        "repair_owner": "CURRENT_DIAGNOSTIC_OWNER_REVIEW_REQUIRED",
+        "repair_description": "UNKNOWN",
+        "regression_test_ref": "UNKNOWN",
+        "resolution_state": "OPEN_REVIEW",
+        "reoccurrence_count": 1,
+        "creates_new_evidence": False,
+        "creates_acceptance_authority": False,
+    }
+    existing = [{
+        **candidate,
+        "exact_head": "oldhead",
+        "first_seen_at": "2026-10-01T00:00:00Z",
+        "last_seen_at": "2026-10-01T00:00:00Z",
+        "reoccurrence_count": 2,
+    }]
+
+    merged = module._merge_failure_memory(
+        existing,
+        [candidate],
+        observed_at="2026-10-05T00:00:00Z",
+    )
+
+    assert len(merged) == 1
+    row = merged[0]
+    assert row["failure_id"] == "fm_same"
+    assert row["first_seen_at"] == "2026-10-01T00:00:00Z"
+    assert row["last_seen_at"] == "2026-10-05T00:00:00Z"
+    assert row["reoccurrence_count"] == 3
+    assert row["exact_head"] == "newhead"
+
+
+def test_failure_memory_has_no_record_when_consistency_is_clean() -> None:
+    module = _load_module()
+    diagnostic = {
+        "run_identity": {"head": "abc", "runtime_authority": "/runtime/current"},
+        "cross_artifact_consistency": [{
+            "check": "clean_check",
+            "status": "PASS",
+            "reason": None,
+        }],
+    }
+
+    assert module._failure_memory_candidates(diagnostic) == []
+
+
+def test_failure_memory_registry_persists_and_counts_reoccurrence(tmp_path: Path) -> None:
+    module = _load_module()
+    diagnostic = {
+        "run_identity": {
+            "head": "abc123",
+            "runtime_authority": "/runtime/active_single_match/current",
+        },
+        "cross_artifact_consistency": [{
+            "check": "machine_vs_human_intelligence_chain_count",
+            "status": "REVIEW_REQUIRED",
+            "reason": "machine_and_human_counts_disagree",
+        }],
+    }
+
+    first_path, first_payload = module.write_failure_memory_registry(
+        tmp_path,
+        diagnostic,
+        observed_at="2026-10-01T00:00:00Z",
+    )
+    second_path, second_payload = module.write_failure_memory_registry(
+        tmp_path,
+        diagnostic,
+        observed_at="2026-10-05T00:00:00Z",
+    )
+
+    assert first_path == second_path
+    assert first_path.is_file()
+    assert first_payload["record_count"] == 1
+    assert second_payload["record_count"] == 1
+    row = second_payload["records"][0]
+    assert row["first_seen_at"] == "2026-10-01T00:00:00Z"
+    assert row["last_seen_at"] == "2026-10-05T00:00:00Z"
+    assert row["reoccurrence_count"] == 2
+    assert second_payload["failure_memory_creates_new_evidence"] is False
+    assert second_payload["failure_memory_creates_acceptance_authority"] is False
