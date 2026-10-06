@@ -58,6 +58,7 @@ SAFE_FINDING_ADMISSION_JSON = "safe_finding_admission_projection_v1.json"
 VISIBLE_SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
 RICH_MULTIFORMAT_JSON = "rich_multiformat_analysis_lattice_v1.json"
 MULTIFORMAT_INVENTORY_JSON = "multiformat_file_inventory_lite_v1.json"
+PROCESS_ACTOR_CONCENTRATION_JSON = "process_actor_participation_concentration_projection_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -4734,6 +4735,10 @@ def build_hp_football_report_tr(
         _human_residual_specialist_cards(rich, identity, "tr") if rich_current else [],
         limit=10,
     )
+    actor_concentration_cards = _hp_take_clean(
+        _human_process_actor_concentration_cards(root, full_spine, identity, "tr"),
+        limit=6,
+    )
     fusion_relation_cards = _hp_take_clean(_human_fusion_relation_cards(full_spine, "tr"), limit=2)
 
     by_team: dict[str, dict[str, dict[str, Any]]] = {}
@@ -4974,6 +4979,8 @@ def build_hp_football_report_tr(
         lines.extend(f"- {line}" for line in specialist_cards)
     else:
         lines.append("- Bu çalışmada ek specialist-synthesis kartı oluşmadı.")
+    if actor_concentration_cards:
+        lines.extend(f"- {line}" for line in actor_concentration_cards)
     if fusion_relation_cards:
         lines.extend(f"- {line}" for line in fusion_relation_cards)
 
@@ -5001,6 +5008,77 @@ def build_hp_football_report_tr(
     return "\n".join(lines)
 
 
+
+
+def _human_process_actor_concentration_cards(
+    root: Path,
+    full_spine: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
+    if not _declared_current(full_spine, PROCESS_ACTOR_CONCENTRATION_JSON):
+        return []
+    payload = _load_json(root / PROCESS_ACTOR_CONCENTRATION_JSON)
+    if str(payload.get("status") or "") not in {"PASS", "REVIEW_REQUIRED"}:
+        return []
+    actors = _human_admitted_actor_labels(identity)
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+    for row in payload.get("process_actor_concentration_profiles") or []:
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        observed_n = int(row.get("actor_observable_process_count") or 0)
+        coverage_num = int(row.get("actor_observation_coverage_numerator") or 0)
+        coverage_den = int(row.get("actor_observation_coverage_denominator") or 0)
+        counts = {
+            str(k): int(v or 0)
+            for k, v in (row.get("actor_process_counts") or {}).items()
+            if int(v or 0) > 0
+        }
+        dyads = {
+            str(k): int(v or 0)
+            for k, v in (row.get("dyad_process_counts") or {}).items()
+            if int(v or 0) > 0
+        }
+        if not team_id or not family or observed_n <= 0 or not counts:
+            continue
+        top_actor_id, top_actor_n = max(counts.items(), key=lambda item: (item[1], item[0]))
+        top_actor = actors.get(top_actor_id)
+        if not top_actor:
+            continue
+        top_dyad_text = ""
+        if dyads:
+            dyad_id, dyad_n = max(dyads.items(), key=lambda item: (item[1], item[0]))
+            parts = dyad_id.split("|")
+            if len(parts) == 2 and parts[0] in actors and parts[1] in actors:
+                top_dyad_text = f"{actors[parts[0]]} + {actors[parts[1]]} {dyad_n}"
+        team = teams.get(team_id, team_id)
+        family_label = _football_family_label(family, language)
+        coverage = f"{coverage_num}/{coverage_den}" if coverage_den > 0 else str(observed_n)
+        if language == "tr":
+            text = (
+                f"Oyuncu süreç yoğunlaşması — {team}, {family_label}: actor annotation coverage {coverage}; "
+                f"{top_actor} {top_actor_n}/{observed_n} gözlenebilir süreçte yer aldı."
+            )
+            if top_dyad_text:
+                text += f" En sık aynı süreçte birlikte görünme: {top_dyad_text}."
+            text += (
+                " Bu birlikte-görünmenin kapsamı aynı process instance içindeki gözlenebilir eş-katılımdır; pas ilişkisi, nedensel işbirliği, vazgeçilmezlik, kalıcı rol, taktik esneklik ve oyuncu değeri yorumları için ayrı evidence gerekir."
+            )
+        else:
+            text = (
+                f"Player process concentration — {team}, {family_label}: actor-annotation coverage {coverage}; "
+                f"{top_actor} appeared in {top_actor_n}/{observed_n} observable processes."
+            )
+            if top_dyad_text:
+                text += f" Most frequent same-process co-appearance: {top_dyad_text}."
+            text += (
+                " Co-appearance is scoped to observable co-participation within the same process instance; pass-relation, causal-collaboration, indispensability, persistent-role, tactical-flexibility, and player-value interpretations require separate evidence."
+            )
+        cards.append(text)
+    return cards
 
 def _human_residual_specialist_cards(
     rich: dict[str, Any],
@@ -5237,6 +5315,7 @@ def build_human_analyst_report_tr(
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "tr") if rich_current else []
     specialist_cards = _human_residual_specialist_cards(rich, identity, "tr") if rich_current else []
+    actor_concentration_cards = _human_process_actor_concentration_cards(root, full_spine, identity, "tr")
     fusion_relation_cards = _human_fusion_relation_cards(full_spine, "tr")
     mechanism_cards = _human_mechanism_cards(
         root,
@@ -5346,6 +5425,9 @@ def build_human_analyst_report_tr(
         lines.extend(f"- {line}" for line in specialist_cards)
     else:
         lines.append("- Bu çalışmada ek specialist-synthesis kartı oluşmadı.")
+    if actor_concentration_cards:
+        lines.append("- Oyuncu katılım yoğunlaşması / birlikte-görünme incelemesi:")
+        lines.extend(f"  • {line}" for line in actor_concentration_cards)
     if fusion_relation_cards:
         lines.append("- Fusion / counterevidence / dependency özeti:")
         lines.extend(f"  • {line}" for line in fusion_relation_cards)
@@ -5403,6 +5485,7 @@ def build_human_analyst_report_en(
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "en") if rich_current else []
     specialist_cards = _human_residual_specialist_cards(rich, identity, "en") if rich_current else []
+    actor_concentration_cards = _human_process_actor_concentration_cards(root, full_spine, identity, "en")
     fusion_relation_cards = _human_fusion_relation_cards(full_spine, "en")
     mechanism_cards = _human_mechanism_cards(
         root,
@@ -5512,6 +5595,9 @@ def build_human_analyst_report_en(
         lines.extend(f"- {line}" for line in specialist_cards)
     else:
         lines.append("- No additional specialist-synthesis card is available in this run.")
+    if actor_concentration_cards:
+        lines.append("- Player participation concentration / co-appearance review:")
+        lines.extend(f"  • {line}" for line in actor_concentration_cards)
     if fusion_relation_cards:
         lines.append("- Fusion / counterevidence / dependency summary:")
         lines.extend(f"  • {line}" for line in fusion_relation_cards)

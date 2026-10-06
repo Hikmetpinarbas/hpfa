@@ -4016,3 +4016,46 @@ def test_short_professional_report_surfaces_context_conditioned_player_function_
     assert "kalıcı rol" not in review_line.casefold()
     assert "oyuncu değeri" not in review_line.casefold()
 
+def test_process_actor_concentration_reaches_player_function_review_without_relation_inference(tmp_path):
+    identity = {
+        "actor_identity_candidates": [
+            {"actor_identity_candidate_id": "a1", "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True, "actor_aliases_raw": ["Player One"]},
+            {"actor_identity_candidate_id": "a2", "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True, "actor_aliases_raw": ["Player Two"]},
+        ],
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
+        ],
+    }
+    payload = {
+        "status": "REVIEW_REQUIRED",
+        "process_actor_concentration_profiles": [{
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "actor_observable_process_count": 10,
+            "actor_observation_coverage_numerator": 10,
+            "actor_observation_coverage_denominator": 12,
+            "actor_process_counts": {"a1": 8, "a2": 5},
+            "dyad_process_counts": {"a1|a2": 4},
+            "action_weighted_concentration_produced": False,
+            "dependency_independence_proven": False,
+            "high_actor_concentration_is_player_indispensability_truth": False,
+            "low_actor_concentration_is_tactical_flexibility_truth": False,
+            "dyad_is_pass_relation_truth": False,
+            "claim_ceiling": "OBSERVED_PROCESS_ACTOR_AND_COPARTICIPATION_CONCENTRATION_WITHIN_DEFINED_PROVIDER_ANNOTATION_UNIVERSE",
+        }],
+    }
+    path = tmp_path / "process_actor_participation_concentration_projection_v1.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    full = {"current_invocation_artifacts": [str(path)]}
+
+    cards = user_output_bundle._human_process_actor_concentration_cards(tmp_path, full, identity, "tr")
+    joined = " ".join(cards)
+
+    assert "Oyuncu süreç yoğunlaşması" in joined
+    assert "Player One 8/10" in joined
+    assert "Player One + Player Two 4" in joined
+    assert "pas ilişkisi" in joined
+    assert "ayrı evidence gerekir" in joined
+    assert "vazgeçilmez oyuncu" not in joined.casefold()
+    assert "taktik esneklik kanıtı" not in joined.casefold()
+
