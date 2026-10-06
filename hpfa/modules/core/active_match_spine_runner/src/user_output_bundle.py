@@ -4909,6 +4909,16 @@ def build_hp_football_report_tr(
 
     lines.extend(["", "OYUNCU İŞLEVLERİ"])
     player_surface = rich.get("player_score_state_process_participation") or {}
+    function_review_by_actor = {
+        str(row.get("actor_identity_candidate_id") or "").strip(): row
+        for row in (player_surface.get("function_hypothesis_review_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("actor_identity_candidate_id") or "").strip()
+        and str(row.get("review_state") or "")
+        == "MATCH_LOCAL_FUNCTION_CONTEXT_VARIATION_REVIEW_CANDIDATE"
+        and row.get("creates_new_evidence") is False
+        and row.get("can_authorize_player_value_claim") is False
+    }
     aggregate: dict[str, dict[str, Any]] = {}
     for row in player_surface.get("profiles") or []:
         if not isinstance(row, dict):
@@ -4917,6 +4927,7 @@ def build_hp_football_report_tr(
         if not ref:
             continue
         item = aggregate.setdefault(ref, {
+            "actor_ref": ref,
             "team_ref": str(row.get("team_identity_candidate_id") or ""),
             "label": actors.get(ref) or _display_label(row.get("actor_label_candidate") or ref),
             "families": Counter(),
@@ -4928,7 +4939,11 @@ def build_hp_football_report_tr(
         for fam, n in (row.get("process_family_counts") or {}).items():
             item["families"][str(fam)] += int(n or 0)
     top_players = []
-    for team_ref in team_refs:
+    player_team_refs = sorted(
+        {str(item.get("team_ref") or "") for item in aggregate.values() if str(item.get("team_ref") or "")},
+        key=lambda ref: teams.get(ref, ref),
+    )
+    for team_ref in player_team_refs:
         team_rows = [
             item for item in aggregate.values()
             if item.get("team_ref") == team_ref
@@ -4943,6 +4958,14 @@ def build_hp_football_report_tr(
             f"- {teams.get(item['team_ref'], item['team_ref'])} — {item['label']}: {item['total']} takım akışında yer aldı; "
             f"{item['shot']} şutla biten akışta göründü. En sık yer aldığı bağlamlar: {fam_text}."
         )
+        review = function_review_by_actor.get(str(item.get("actor_ref") or "")) or {}
+        if review:
+            state_n = int(review.get("observed_score_state_context_n") or 0)
+            family_n = int(review.get("observed_process_family_n") or 0)
+            lines.append(
+                f"- İşlev inceleme adayı — {item['label']}: {state_n} skor bağlamında {family_n} süreç ailesi; "
+                "görünür süreç bileşimi bağlamlar arasında farklılaştı. Analist kontrolü: aynı oyuncunun süreç-aile dağılımını skor bağlamları arasında yeniden karşılaştır."
+            )
     if top_players:
         lines.append("- Bu bölüm oyuncunun kalıcı rolünü değil, bu maçta takımın hangi oyun akışlarında daha sık göründüğünü anlatır.")
 

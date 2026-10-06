@@ -3955,3 +3955,64 @@ def test_fusion_relation_summary_surfaces_dependency_and_counterevidence_without
     cleaned = user_output_bundle._hp_take_clean(cards, limit=2)
     assert cleaned and "Kanıt ilişki özeti" in cleaned[0]
 
+def test_short_professional_report_surfaces_context_conditioned_player_function_review(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    identity_path.write_text(
+        json.dumps({
+            "team_identity_candidates": [
+                {"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha", "team_aliases_raw": ["Alpha"]},
+            ],
+            "actor_identity_candidates": [
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "actor_aliases_raw": ["1. Player One (101)"],
+                    "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                    "validated_player_identity": True,
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+    rich = {
+        "status": "PASS",
+        "constructs": {"C03": {"team_process_profiles": []}},
+        "player_score_state_process_participation": {
+            "status": "PASS",
+            "profiles": [
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "actor_label_candidate": "Player One",
+                    "team_identity_candidate_id": "team_a",
+                    "visible_process_participation_n": 5,
+                    "shot_ending_process_participation_n": 1,
+                    "process_family_counts": {"POSITIONAL_ATTACK_CANDIDATE": 4, "COUNTERATTACK_CANDIDATE": 1},
+                }
+            ],
+            "function_hypothesis_review_candidates": [
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "observed_score_state_context_n": 3,
+                    "observed_process_family_n": 2,
+                    "process_mix_varies_across_observed_score_states": True,
+                    "review_state": "MATCH_LOCAL_FUNCTION_CONTEXT_VARIATION_REVIEW_CANDIDATE",
+                    "creates_new_evidence": False,
+                    "can_authorize_player_value_claim": False,
+                    "stable_role_truth": False,
+                    "causal_contribution_truth": False,
+                    "off_ball_role_truth": False,
+                }
+            ],
+        },
+    }
+    spine = _full_spine(current_artifacts=[str(identity_path)])
+    spine["rich_multiformat_analysis_lattice"] = rich
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+
+    text = user_output_bundle.build_hp_football_report_tr(tmp_path, spine)
+
+    review_line = next(line for line in text.splitlines() if "İşlev inceleme adayı —" in line)
+    assert "Player One" in review_line
+    assert "3 skor bağlamında 2 süreç ailesi" in review_line
+    assert "kalıcı rol" not in review_line.casefold()
+    assert "oyuncu değeri" not in review_line.casefold()
+
