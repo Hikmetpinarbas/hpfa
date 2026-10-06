@@ -5160,18 +5160,26 @@ def _human_residual_specialist_cards(
 
 
 def _human_fusion_relation_cards(full_spine: dict[str, Any], language: str) -> list[str]:
-    chains = full_spine.get("intelligence_chains")
-    if not isinstance(chains, list) or not chains:
+    fusion_records: list[dict[str, Any]] = []
+    sidecar = full_spine.get("fusion_relation_review_records")
+    if isinstance(sidecar, list) and sidecar:
+        fusion_records = [row for row in sidecar if isinstance(row, dict)]
+    else:
+        chains = full_spine.get("intelligence_chains")
+        if isinstance(chains, list):
+            fusion_records = [
+                fusion
+                for chain in chains
+                if isinstance(chain, dict)
+                for fusion in [chain.get("fusion")]
+                if isinstance(fusion, dict)
+            ]
+    if not fusion_records:
         return []
     relation_counts: Counter[str] = Counter()
     admitted_counter = unresolved_counter = independent = correlated = dependency_challenge = 0
     fusion_n = 0
-    for chain in chains:
-        if not isinstance(chain, dict):
-            continue
-        fusion = chain.get("fusion")
-        if not isinstance(fusion, dict):
-            continue
+    for fusion in fusion_records:
         fusion_n += 1
         relation_counts.update({str(k): int(v or 0) for k, v in (fusion.get("relation_counts") or {}).items()})
         admitted_counter += int(fusion.get("admitted_counterevidence_count") or 0)
