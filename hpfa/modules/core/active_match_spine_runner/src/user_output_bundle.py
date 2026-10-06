@@ -5017,8 +5017,8 @@ def _human_residual_specialist_cards(
             end_text = ", ".join(f"{_display_label(k)} {int(v or 0)}" for k, v in sorted(end_counts.items())) or ("çözümlenmedi" if language == "tr" else "unresolved")
             if language == "tr":
                 cards.append(
-                    f"Kurulum/ilerleme bağlamı — {name}: {sig_n} admitted süreç imzası; {circulation_n} görünür dolaşım süreci, "
-                    f"{gk_n} kaleci yeniden başlatma bağlamı ve {axis_n} provider-hücum-ekseni admitted süreç. "
+                    f"Kurulum/ilerleme bağlamı — {name}: {sig_n} süreç imzası; {circulation_n} görünür dolaşım süreci, "
+                    f"{gk_n} kaleci yeniden başlatma bağlamı ve {axis_n} hücum-ekseni bağlamlı süreç. "
                     f"Görünür bitiş bölgesi adayları: {end_text}. Bu birleşik yüzey mevcut construction ve progression contextlerini tek inceleme kartında toplar."
                 )
             else:
@@ -5102,8 +5102,8 @@ def _human_residual_specialist_cards(
             next_text = ", ".join(f"{_football_family_label(k, language)} {v}" for k, v in sorted(next_families.items())) or ("tekil bağ yok" if language == "tr" else "no single binding")
             if language == "tr":
                 cards.append(
-                    f"Kaleci yeniden başlatma bağlamı — {name}: {len(rows)} admitted goal-kick occurrence; provider mesafe bucket'ları {bucket_text}; SUCCESS etiketi {success_n}/{len(rows)}; "
-                    f"ilk görünür sonraki süreç bağları {next_text}. Provider bucket ölçülmüş fiziksel mesafe veya teknik plan anlamına yükseltilmez."
+                    f"Kaleci yeniden başlatma bağlamı — {name}: {len(rows)} kale vuruşu başlangıç kaydı; mesafe sınıfları {bucket_text}; SUCCESS etiketi {success_n}/{len(rows)}; "
+                    f"ilk görünür sonraki süreç bağları {next_text}. Mesafe sınıfının fiziksel mesafe veya teknik plan yorumuna yükselmesi için ayrı observation gerekir."
                 )
             else:
                 cards.append(
@@ -5161,9 +5161,9 @@ def _human_fusion_relation_cards(full_spine: dict[str, Any], language: str) -> l
     rel = ", ".join(f"{k} {v}" for k, v in sorted(relation_counts.items()) if v) or "NONE"
     if language == "tr":
         return [
-            f"Kanıt ilişki özeti: {fusion_n} fusion kaydı; ilişkiler {rel}; admitted counterevidence {admitted_counter}, unresolved counterevidence {unresolved_counter}, "
-            f"dependency challenge {dependency_challenge}, bağımsız destek {independent}, correlated/unknown support {correlated}. "
-            "Nominal referans sayısı bağımsız destek sayısı olarak kullanılmıyor; counterevidence yalnız admitted comparison/dependency koşullarıyla yükseliyor."
+            f"Kanıt ilişki özeti: {fusion_n} birleştirme kaydı; ilişkiler {rel}; doğrulanmış karşı-örnek {admitted_counter}, çözülmemiş karşı-örnek {unresolved_counter}, "
+            f"bağımlılık inceleme kaydı {dependency_challenge}, bağımsız destek {independent}, ilişkili veya bağımsızlığı belirsiz destek {correlated}. "
+            "Ham referans sayısı bağımsız destek sayılmaz; karşı-örnek sınıfı yalnız karşılaştırma uygunluğu ve bağımlılık koşullarıyla yükselir."
         ]
     return [
         f"Evidence-relation summary: {fusion_n} fusion records; relations {rel}; admitted counterevidence {admitted_counter}, unresolved counterevidence {unresolved_counter}, "

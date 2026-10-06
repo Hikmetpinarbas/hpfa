@@ -3910,6 +3910,10 @@ def test_residual_rich_specialist_surfaces_reach_human_cards_without_overclaim()
     assert "fiziksel mesafe üstünlüğü" not in joined.casefold()
     assert "taktik üstünlük sağladı" not in joined.casefold()
     assert "baskı geometrisi kanıtı" not in joined.casefold()
+    cleaned = user_output_bundle._hp_take_clean(cards, limit=10)
+    cleaned_joined = " ".join(cleaned)
+    assert "Kurulum/ilerleme bağlamı" in cleaned_joined
+    assert "Kaleci yeniden başlatma bağlamı" in cleaned_joined
 
 
 def test_fusion_relation_summary_surfaces_dependency_and_counterevidence_without_inflation():
@@ -3944,8 +3948,10 @@ def test_fusion_relation_summary_surfaces_dependency_and_counterevidence_without
     assert "Kanıt ilişki özeti" in joined
     assert "SUPPORTS 3" in joined
     assert "CONTEXTUALIZES 1" in joined
-    assert "admitted counterevidence 1" in joined
-    assert "dependency challenge 3" in joined
+    assert "doğrulanmış karşı-örnek 1" in joined
+    assert "bağımlılık inceleme kaydı 3" in joined
     assert "bağımsız destek 0" in joined
-    assert "referans sayısı bağımsız destek sayısı olarak kullanılmıyor" in joined
+    assert "Ham referans sayısı bağımsız destek sayılmaz" in joined
+    cleaned = user_output_bundle._hp_take_clean(cards, limit=2)
+    assert cleaned and "Kanıt ilişki özeti" in cleaned[0]
 
