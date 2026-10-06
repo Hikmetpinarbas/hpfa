@@ -3703,3 +3703,66 @@ def test_standard_user_outputs_forwards_question_to_human_reports(tmp_path, monk
 
     assert captured["tr"] == question
     assert captured["en"] == question
+
+def test_visible_process_route_breadth_reaches_professional_report_without_tactical_overclaim(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    identity_path.write_text(
+        json.dumps({
+            "team_identity_candidates": [
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "team_normalized_key": "alpha",
+                    "team_aliases_raw": ["Alpha"],
+                }
+            ]
+        }),
+        encoding="utf-8",
+    )
+    rich = {
+        "status": "PASS",
+        "visible_process_route_breadth_profile": {
+            "status": "PASS",
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_ROUTE_BREADTH_PROFILE_CANDIDATE_ONLY",
+            "profiles": [
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "eligible_process_n": 8,
+                    "eligible_unambiguous_route_process_n": 6,
+                    "ambiguous_or_unresolved_route_process_n": 2,
+                    "visible_route_candidate_counts": {
+                        "DEFENSIVE_THIRD->MIDDLE_THIRD": 2,
+                        "MIDDLE_THIRD->FINAL_THIRD": 3,
+                        "FINAL_THIRD->BOX": 1,
+                    },
+                    "unique_visible_route_candidate_n": 3,
+                    "recurring_visible_route_candidate_n": 2,
+                    "singleton_visible_route_candidate_n": 1,
+                    "top_visible_route_candidate": "MIDDLE_THIRD->FINAL_THIRD",
+                    "top_visible_route_process_n": 3,
+                    "route_coverage_share_candidate": 0.75,
+                    "route_is_physical_trajectory_truth": False,
+                    "route_is_line_break_truth": False,
+                    "route_breadth_is_tactical_flexibility_truth": False,
+                    "route_breadth_is_unpredictability_truth": False,
+                    "route_breadth_is_superiority_truth": False,
+                    "coach_intention_truth": False,
+                }
+            ],
+        },
+    }
+    spine = _full_spine(current_artifacts=[str(identity_path)])
+    spine["rich_multiformat_analysis_lattice"] = rich
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+
+    text = user_output_bundle._build_hp_football_report_tr_v0(tmp_path, spine)
+
+    assert "GÖRÜNÜR SÜREÇ ROTALARI" in text
+    assert "Alpha — yerleşik hücum" in text
+    assert "6/8 süreçte tekil başlangıç→bitiş rotası" in text
+    assert "3 farklı görünür rota" in text
+    assert "MIDDLE THIRD→FINAL THIRD 3" in text
+    assert "fiziksel rota" not in text.casefold()
+    assert "taktik esneklik" not in text.casefold()
+    assert "üstünlük" not in text.casefold()
+
