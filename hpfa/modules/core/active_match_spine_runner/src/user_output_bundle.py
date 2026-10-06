@@ -1488,7 +1488,7 @@ def _human_process_route_breadth_cards(
             if unresolved_n:
                 football += f" {unresolved_n} süreçte başlangıç/bitiş rota bağlamı belirsiz veya çözümlenmemiş kaldı."
             evidence = (
-                "Kanıt notu: bu yüzey yalnız admitted süreç imzalarındaki tekil görünür başlangıç ve bitiş bölge adaylarını özetler; fiziksel rota, gerçek oyuncu/top yolu, line-break, taktik esneklik, öngörülemezlik, üstünlük ve teknik ekip niyeti çıkarımı yapmaz."
+                "Kanıt notu: bu yüzeyin kapsamı admitted süreç imzalarındaki tekil görünür başlangıç ve bitiş bölge adaylarıdır; fiziksel rota, gerçek oyuncu/top yolu, line-break, taktik esneklik, öngörülemezlik, üstünlük ve teknik ekip niyeti yorumları için ayrı observation gerekir."
             )
         else:
             football = (
@@ -1500,7 +1500,7 @@ def _human_process_route_breadth_cards(
             if unresolved_n:
                 football += f" Start/end route context remained ambiguous or unresolved in {unresolved_n} processes."
             evidence = (
-                "Evidence note: this surface summarizes only single visible start- and end-zone candidates from admitted process signatures; it does not establish physical trajectory, actual player/ball path, line breaks, tactical flexibility, unpredictability, superiority, or coaching intention."
+                "Evidence note: this surface is scoped to single visible start- and end-zone candidates from admitted process signatures; physical trajectory, actual player/ball path, line breaks, tactical flexibility, unpredictability, superiority, and coaching-intention interpretations require separate observations."
             )
         cards.extend([football, evidence])
     return cards
