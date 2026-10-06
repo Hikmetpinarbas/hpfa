@@ -3687,6 +3687,17 @@ def _human_player_function_cards(
         if actor_id:
             score_state_by_actor.setdefault(actor_id, []).append(score_row)
 
+    function_review_by_actor: dict[str, dict[str, Any]] = {
+        str(row.get("actor_identity_candidate_id") or "").strip(): row
+        for row in (score_state_surface.get("function_hypothesis_review_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("actor_identity_candidate_id") or "").strip()
+        and str(row.get("review_state") or "")
+        == "MATCH_LOCAL_FUNCTION_CONTEXT_VARIATION_REVIEW_CANDIDATE"
+        and row.get("creates_new_evidence") is False
+        and row.get("can_authorize_player_value_claim") is False
+    }
+
     state_function_evidence = (
         identity.get("__spatial_progression_evidence__")
         if isinstance(identity.get("__spatial_progression_evidence__"), dict)
@@ -3796,6 +3807,34 @@ def _human_player_function_cards(
                         "CREATE=UNKNOWN; DENY=UNKNOWN."
                     )
 
+            review_contract = function_review_by_actor.get(actor_id) or {}
+            function_review_bit = ""
+            if review_contract:
+                state_n = int(review_contract.get("observed_score_state_context_n") or 0)
+                family_n = int(review_contract.get("observed_process_family_n") or 0)
+                if language == "tr":
+                    function_review_bit = (
+                        f" İşlev inceleme adayı: {state_n} admitted skor bağlamında {family_n} görünür süreç ailesi izlendi "
+                        "ve süreç bileşimi bağlamlar arasında farklılaştı. "
+                        "Bu adayın kapsamı maç-içi görünür işlev değişimidir; oyuncu değeri, kalıcı rol, off-ball rol ve "
+                        "nedensel katkı yorumları için ayrı evidence gerekir. "
+                        "Alternatif açıklamalar arasında skor durumlarındaki oyuncu maruziyeti, takım süreç fırsat bileşimi, "
+                        "rakip/maç bağlamı ve shared-process dependency açık tutulur. "
+                        "Analist aksiyonu: aynı oyuncunun görünür süreç-aile katılımını skor bağlamları arasında karşılaştır; "
+                        "fırsat bileşimi, consequence bağlamı, dependency ve exposure sınırlarını birlikte kontrol et."
+                    )
+                else:
+                    function_review_bit = (
+                        f" Function review candidate: {state_n} admitted score contexts contain {family_n} visible process families "
+                        "and the visible process mix varies across those contexts. "
+                        "The review scope is match-local visible function variation; player value, persistent role, off-ball role, "
+                        "and causal-contribution interpretations require separate evidence. "
+                        "Alternative explanations keep player exposure, team process-opportunity mix, opponent/match context, and "
+                        "shared-process dependency open. "
+                        "Analyst action: compare the same player's visible process-family participation across score contexts, then "
+                        "review opportunity mix, consequence context, dependency, and exposure limits together."
+                    )
+
             metrics = _player_profile_metric_values(row)
             metric_bits: list[str] = []
             for key, tr_label, en_label in preferred_metrics:
@@ -3822,6 +3861,7 @@ def _human_player_function_cards(
                 if metric_bits:
                     text += " Aggregate fonksiyon bağlamı: " + ", ".join(metric_bits) + "."
                 text += state_function_bit
+                text += function_review_bit
                 text += (
                     " Bu kart yalnız maç-içi görünür işlev bağlamıdır. İsim yalnız kabul edilmiş maç-içi oyuncu etiketidir; "
                     "global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır. Oyuncu niteliği ve kalıcı/taktik rol yorumu "
@@ -3842,6 +3882,7 @@ def _human_player_function_cards(
                 if metric_bits:
                     text += " Aggregate function context: " + ", ".join(metric_bits) + "."
                 text += state_function_bit
+                text += function_review_bit
                 text += (
                     " This is match-local function context only. The name is only an admitted actor-identity label; "
                     "global/cross-match player identity remains outside scope. Player quality and persistent/tactical-role interpretation "

@@ -2658,6 +2658,31 @@ def test_player_function_cards_surface_match_local_function_context_without_qual
     rich = {
         "player_score_state_process_participation": {
             "status": "PASS",
+            "function_hypothesis_review_candidates": [
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "observed_score_state_context_n": 2,
+                    "observed_process_family_n": 2,
+                    "process_mix_varies_across_observed_score_states": True,
+                    "review_state": "MATCH_LOCAL_FUNCTION_CONTEXT_VARIATION_REVIEW_CANDIDATE",
+                    "creates_new_evidence": False,
+                    "can_authorize_player_value_claim": False,
+                    "stable_role_truth": False,
+                    "causal_contribution_truth": False,
+                    "off_ball_role_truth": False,
+                    "counter_scenario_candidates": [
+                        "PLAYER_EXPOSURE_DIFFERS_ACROSS_SCORE_STATES_AND_IS_NOT_ADMITTED_HERE",
+                        "TEAM_PROCESS_OPPORTUNITY_MIX_MAY_DIFFER_ACROSS_SCORE_STATES",
+                    ],
+                    "hypothesis_falsifier_conditions": ["ELIGIBLE_CONTEXT_REVIEW_SHOWS_COMPARABLE_VISIBLE_PROCESS_MIX_ACROSS_SCORE_STATES"],
+                    "invalidation_conditions": ["SCORE_STATE_BINDING_INVALIDATED"],
+                    "falsifier_is_invalidator": False,
+                    "absence_is_falsifier": False,
+                    "withdrawal_conditions": ["FEWER_THAN_TWO_ADMITTED_SCORE_STATE_CONTEXTS_REMAIN"],
+                    "analyst_action": "Compare visible process-family participation across score-state contexts before stronger interpretation.",
+                    "claim_ceiling": "MATCH_LOCAL_CONTEXT_CONDITIONED_PLAYER_FUNCTION_REVIEW_CANDIDATE_ONLY",
+                }
+            ],
             "profiles": [
                 {
                     "actor_identity_candidate_id": "a1",
@@ -2781,8 +2806,13 @@ def test_player_function_cards_surface_match_local_function_context_without_qual
     assert "taktik rol gerçeği" not in joined_tr.lower()
     assert "nedensel katkı" in joined_tr.lower()
     assert "per-90" in joined_tr
+    assert "İşlev inceleme adayı:" in joined_tr
+    assert "2 admitted skor bağlamında 2 görünür süreç ailesi" in joined_tr
+    assert "kalıcı rol" in joined_tr
+    assert "ayrı evidence gerekir" in joined_tr
 
     assert "Player One" in joined_en
+    assert "Function review candidate:" in joined_en
     assert "positional attack 12" in joined_en
     assert "match-local function context" in joined_en.lower()
 
