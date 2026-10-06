@@ -3818,7 +3818,7 @@ def _human_player_function_cards(
                         f" İşlev inceleme adayı: {state_n} admitted skor bağlamında {family_n} görünür süreç ailesi izlendi "
                         "ve süreç bileşimi bağlamlar arasında farklılaştı. "
                         "Bu adayın kapsamı maç-içi görünür işlev değişimidir; oyuncu değeri, kalıcı rol, off-ball rol ve "
-                        "nedensel katkı yorumları için ayrı evidence gerekir. "
+                        "nedensel katkı yorumları için ayrı gözlem gerekir. "
                         "Alternatif açıklamalar arasında skor durumlarındaki oyuncu maruziyeti, takım süreç fırsat bileşimi, "
                         "rakip/maç bağlamı ve shared-process dependency açık tutulur. "
                         "Analist aksiyonu: aynı oyuncunun görünür süreç-aile katılımını skor bağlamları arasında karşılaştır; "
@@ -3829,7 +3829,7 @@ def _human_player_function_cards(
                         f" Function review candidate: {state_n} admitted score contexts contain {family_n} visible process families "
                         "and the visible process mix varies across those contexts. "
                         "The review scope is match-local visible function variation; player value, persistent role, off-ball role, "
-                        "and causal-contribution interpretations require separate evidence. "
+                        "and causal-contribution interpretations require separate observation. "
                         "Alternative explanations keep player exposure, team process-opportunity mix, opponent/match context, and "
                         "shared-process dependency open. "
                         "Analyst action: compare the same player's visible process-family participation across score contexts, then "
@@ -4469,7 +4469,28 @@ def _hp_clean_football_line(value: Any) -> str | None:
         if not cleaned:
             continue
         low = cleaned.casefold()
-        if any(token in low for token in forbidden_sentence_tokens):
+        forbidden_hit = any(
+            token in low
+            for token in forbidden_sentence_tokens
+            if token != "layer"
+        )
+        if not forbidden_hit:
+            normalized_words = (
+                low.replace(",", " ")
+                .replace(":", " ")
+                .replace(";", " ")
+                .replace("(", " ")
+                .replace(")", " ")
+                .replace("[", " ")
+                .replace("]", " ")
+                .replace("{", " ")
+                .replace("}", " ")
+                .replace("/", " ")
+                .replace("-", " ")
+                .split()
+            )
+            forbidden_hit = "layer" in normalized_words
+        if forbidden_hit:
             continue
         cleaned = cleaned.replace("görünür ", "").replace("Görünür ", "")
         cleaned = cleaned.replace("_CANDIDATE", "").replace("_", " ")
@@ -5048,6 +5069,8 @@ def _human_process_actor_concentration_cards(
         top_actor = actors.get(top_actor_id)
         if not top_actor:
             continue
+        top_actor_bits = top_actor.split(". ", 1)
+        top_actor_display = top_actor_bits[1] if len(top_actor_bits) == 2 and top_actor_bits[0].isdigit() else top_actor
         top_dyad_text = ""
         if dyads:
             dyad_id, dyad_n = max(dyads.items(), key=lambda item: (item[1], item[0]))
@@ -5064,25 +5087,19 @@ def _human_process_actor_concentration_cards(
         family_label = _football_family_label(family, language)
         coverage = f"{coverage_num}/{coverage_den}" if coverage_den > 0 else str(observed_n)
         if language == "tr":
+            dyad_bit = f"; en sık aynı süreçte birlikte görünme {top_dyad_text}" if top_dyad_text else ""
             text = (
                 f"Oyuncu süreç yoğunlaşması — {team}, {family_label}: actor annotation coverage {coverage}; "
-                f"{top_actor} {top_actor_n}/{observed_n} gözlenebilir süreçte yer aldı; kapsam aynı process instance içindeki gözlenebilir eş-katılımdır."
+                f"{top_actor_display} {top_actor_n}/{observed_n} gözlenebilir süreçte yer aldı{dyad_bit}; kapsam aynı process instance içindeki gözlenebilir eş-katılımdır; "
+                "pas ilişkisi, nedensel işbirliği, kalıcı rol, taktik esneklik ve oyuncu değeri yorumları için ayrı gözlem gerekir."
             )
-            if top_dyad_text:
-                text += (
-                    f" En sık aynı süreçte birlikte görünme: {top_dyad_text}; pas ilişkisi, nedensel işbirliği, kalıcı rol, "
-                    "taktik esneklik ve oyuncu değeri yorumları için ayrı evidence gerekir."
-                )
         else:
+            dyad_bit = f"; most frequent same-process co-appearance {top_dyad_text}" if top_dyad_text else ""
             text = (
                 f"Player process concentration — {team}, {family_label}: actor-annotation coverage {coverage}; "
-                f"{top_actor} appeared in {top_actor_n}/{observed_n} observable processes; scope is observable co-participation within the same process instance."
+                f"{top_actor_display} appeared in {top_actor_n}/{observed_n} observable processes{dyad_bit}; scope is observable co-participation within the same process instance; "
+                "pass-relation, causal-collaboration, persistent-role, tactical-flexibility, and player-value interpretations require separate observation."
             )
-            if top_dyad_text:
-                text += (
-                    f" Most frequent same-process co-appearance: {top_dyad_text}; pass-relation, causal-collaboration, persistent-role, "
-                    "tactical-flexibility, and player-value interpretations require separate evidence."
-                )
         cards.append(text)
     return cards
 

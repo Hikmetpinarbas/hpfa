@@ -2809,7 +2809,7 @@ def test_player_function_cards_surface_match_local_function_context_without_qual
     assert "İşlev inceleme adayı:" in joined_tr
     assert "2 admitted skor bağlamında 2 görünür süreç ailesi" in joined_tr
     assert "kalıcı rol" in joined_tr
-    assert "ayrı evidence gerekir" in joined_tr
+    assert "ayrı gözlem gerekir" in joined_tr
 
     assert "Player One" in joined_en
     assert "Function review candidate:" in joined_en
@@ -4052,11 +4052,20 @@ def test_process_actor_concentration_reaches_player_function_review_without_rela
     joined = " ".join(cards)
 
     assert "Oyuncu süreç yoğunlaşması" in joined
-    assert "10. Player One 8/10" in joined
+    assert "Player One 8/10" in joined
     assert "Player One + Player Two 4" in joined
     assert "pas ilişkisi" in joined
-    assert "ayrı evidence gerekir" in joined
+    assert "ayrı gözlem gerekir" in joined
     assert "aynı process instance içindeki gözlenebilir eş-katılımdır" in joined
+    compressed = " ".join(user_output_bundle._hp_take_clean(cards, limit=6))
+    assert "Player One + Player Two 4" in compressed
+    assert "aynı process instance içindeki gözlenebilir eş-katılımdır" in compressed
     assert "vazgeçilmez oyuncu" not in joined.casefold()
     assert "taktik esneklik kanıtı" not in joined.casefold()
+
+def test_short_report_cleaner_does_not_treat_player_as_layer_token():
+    player_line = "Player One 8/10 süreçte yer aldı; kapsam aynı process instance içindeki gözlenebilir eş-katılımdır."
+    technical_layer_line = "Layer status current."
+    assert user_output_bundle._hp_clean_football_line(player_line) is not None
+    assert user_output_bundle._hp_clean_football_line(technical_layer_line) is None
 
