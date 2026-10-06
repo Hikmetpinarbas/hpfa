@@ -4730,6 +4730,11 @@ def build_hp_football_report_tr(
         _human_process_route_breadth_cards(rich, identity, "tr") if rich_current else [],
         limit=4,
     )
+    specialist_cards = _hp_take_clean(
+        _human_residual_specialist_cards(rich, identity, "tr") if rich_current else [],
+        limit=10,
+    )
+    fusion_relation_cards = _hp_take_clean(_human_fusion_relation_cards(full_spine, "tr"), limit=2)
 
     by_team: dict[str, dict[str, dict[str, Any]]] = {}
     for row in profiles:
@@ -4941,6 +4946,14 @@ def build_hp_football_report_tr(
     if top_players:
         lines.append("- Bu bölüm oyuncunun kalıcı rolünü değil, bu maçta takımın hangi oyun akışlarında daha sık göründüğünü anlatır.")
 
+    lines.extend(["", "BAĞLI UZMAN YÜZEYLER"])
+    if specialist_cards:
+        lines.extend(f"- {line}" for line in specialist_cards)
+    else:
+        lines.append("- Bu çalışmada ek specialist-synthesis kartı oluşmadı.")
+    if fusion_relation_cards:
+        lines.extend(f"- {line}" for line in fusion_relation_cards)
+
     lines.extend(["", "ANALİST KARARI — NEREYE BAKMALI?"])
     if positional_rows:
         lines.append("- Maç değerlendirmesinde hücum sayısını sonuçla eşitleme; önce hangi yerleşik hücumların şuta, hangilerinin top kaybına gittiğini karşılaştır.")
@@ -4964,6 +4977,199 @@ def build_hp_football_report_tr(
     lines.append("")
     return "\n".join(lines)
 
+
+
+def _human_residual_specialist_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
+    """Render current rich-lane specialist syntheses that otherwise have no human consumer."""
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+
+    m01 = rich.get("m01_possession_construction_synthesis") or {}
+    m02 = rich.get("m02_progression_territory_synthesis") or {}
+    r01 = rich.get("r01_ball_progression_system_synthesis") or {}
+    if str(r01.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        m01_by_team = {
+            str(row.get("team_identity_candidate_id") or ""): row
+            for row in (m01.get("profiles") or []) if isinstance(row, dict)
+        }
+        m02_by_team = {
+            str(row.get("team_identity_candidate_id") or ""): row
+            for row in (m02.get("profiles") or []) if isinstance(row, dict)
+        }
+        for row in r01.get("profiles") or []:
+            if not isinstance(row, dict):
+                continue
+            team_id = str(row.get("team_identity_candidate_id") or "").strip()
+            if not team_id:
+                continue
+            name = teams.get(team_id, team_id)
+            construction = m01_by_team.get(team_id) or {}
+            progression = m02_by_team.get(team_id) or {}
+            sig_n = int(construction.get("eligible_process_signature_n") or progression.get("eligible_process_signature_n") or 0)
+            circulation_n = int(construction.get("visible_circulation_process_n") or 0)
+            gk_n = int(construction.get("goalkeeper_restart_context_n") or 0)
+            axis_n = int(progression.get("provider_attack_axis_delta_admitted_process_n") or 0)
+            end_counts = progression.get("visible_end_zone_candidate_counts") or {}
+            end_text = ", ".join(f"{_display_label(k)} {int(v or 0)}" for k, v in sorted(end_counts.items())) or ("çözümlenmedi" if language == "tr" else "unresolved")
+            if language == "tr":
+                cards.append(
+                    f"Kurulum/ilerleme bağlamı — {name}: {sig_n} admitted süreç imzası; {circulation_n} görünür dolaşım süreci, "
+                    f"{gk_n} kaleci yeniden başlatma bağlamı ve {axis_n} provider-hücum-ekseni admitted süreç. "
+                    f"Görünür bitiş bölgesi adayları: {end_text}. Bu birleşik yüzey mevcut construction ve progression contextlerini tek inceleme kartında toplar."
+                )
+            else:
+                cards.append(
+                    f"Construction/progression context — {name}: {sig_n} admitted process signatures; {circulation_n} visible circulation processes, "
+                    f"{gk_n} goalkeeper-restart contexts and {axis_n} provider-attack-axis admitted processes. "
+                    f"Visible end-zone candidates: {end_text}. This combined surface binds existing construction and progression contexts into one review card."
+                )
+
+    m06 = rich.get("m06_transition_dynamics_synthesis") or {}
+    if str(m06.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        for row in m06.get("profiles") or []:
+            if not isinstance(row, dict):
+                continue
+            team_id = str(row.get("team_identity_candidate_id") or "").strip()
+            if not team_id:
+                continue
+            name = teams.get(team_id, team_id)
+            counter_n = int(row.get("counterattack_context_n") or 0)
+            to_pos_n = int(row.get("counter_to_positional_successor_candidate_n") or 0)
+            latency_n = int(row.get("counterattack_successor_latency_observed_n") or 0)
+            lo = row.get("counterattack_successor_latency_min_candidate")
+            hi = row.get("counterattack_successor_latency_max_candidate")
+            if language == "tr":
+                latency = f"{_human_number(lo)}–{_human_number(hi)} sn" if latency_n and lo is not None and hi is not None else "çözümlenmedi"
+                cards.append(
+                    f"Geçiş-devam bağlamı — {name}: {counter_n} kontra-atak bağlamının {to_pos_n} tanesinde sonraki tekil görünür süreç yerleşik hücum adayıydı; "
+                    f"{latency_n} örnekte sonraki görünür sürece süre aralığı {latency}. Bu yüzey görünür ardışıklığı özetler; transition-phase, momentum ve taktik adaptasyon yorumları ayrı observation gerektirir."
+                )
+            else:
+                latency = f"{_human_number(lo)}–{_human_number(hi)} s" if latency_n and lo is not None and hi is not None else "unresolved"
+                cards.append(
+                    f"Transition-continuation context — {name}: {to_pos_n} of {counter_n} counterattack contexts were followed by a single visible positional-attack candidate; "
+                    f"the next-visible-process latency range across {latency_n} observed examples was {latency}. This surface summarizes visible succession; transition-phase, momentum and tactical-adaptation interpretations require separate observations."
+                )
+
+    m07 = rich.get("m07_defensive_process_visible_exposure_response_synthesis") or {}
+    if str(m07.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        for row in m07.get("profiles") or []:
+            if not isinstance(row, dict):
+                continue
+            team_id = str(row.get("team_identity_candidate_id") or "").strip()
+            opp_id = str(row.get("opponent_team_identity_candidate_id") or "").strip()
+            if not team_id:
+                continue
+            name = teams.get(team_id, team_id)
+            opp = teams.get(opp_id, opp_id or ("rakip" if language == "tr" else "opponent"))
+            proc_n = int(row.get("opponent_visible_process_n") or 0)
+            shot_n = int(row.get("opponent_shot_ending_process_n") or 0)
+            loss_n = int(row.get("opponent_visible_loss_process_n") or 0)
+            if language == "tr":
+                cards.append(
+                    f"Savunma maruziyeti/yanıt bağlamı — {name}: {opp} için {proc_n} görünür süreç, {shot_n} şut-sonlanan süreç ve {loss_n} görünür kayıp süreci bağlandı. "
+                    "Kapsam event/process-visible maruziyet ve yanıttır; organize savunma şekli, compactness, pressure geometry, forced-turnover ve savunma başarısı yorumları ayrı observation gerektirir."
+                )
+            else:
+                cards.append(
+                    f"Defensive exposure/response context — {name}: {opp} was linked to {proc_n} visible processes, {shot_n} shot-ending processes and {loss_n} visible-loss processes. "
+                    "Scope is event/process-visible exposure and response; organized-defence shape, compactness, pressure geometry, forced-turnover and defensive-success interpretations require separate observations."
+                )
+
+    gk = rich.get("goalkeeper_restart_consequence_context") or {}
+    if str(gk.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        by_team: dict[str, list[dict[str, Any]]] = {}
+        for row in gk.get("rows") or []:
+            if isinstance(row, dict):
+                tid = str(row.get("team_identity_candidate_id") or "").strip()
+                if tid:
+                    by_team.setdefault(tid, []).append(row)
+        for team_id, rows in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+            name = teams.get(team_id, team_id)
+            buckets = Counter(str(row.get("provider_distance_bucket_candidate") or "UNRESOLVED") for row in rows)
+            success_n = sum(str(row.get("pass_outcome_candidate") or "") == "SUCCESS" for row in rows)
+            next_families = Counter(
+                str(fam)
+                for row in rows
+                for fam in (row.get("next_visible_process_family_candidates") or [])
+                if str(fam)
+            )
+            bucket_text = ", ".join(f"{_display_label(k)} {v}" for k, v in sorted(buckets.items()))
+            next_text = ", ".join(f"{_football_family_label(k, language)} {v}" for k, v in sorted(next_families.items())) or ("tekil bağ yok" if language == "tr" else "no single binding")
+            if language == "tr":
+                cards.append(
+                    f"Kaleci yeniden başlatma bağlamı — {name}: {len(rows)} admitted goal-kick occurrence; provider mesafe bucket'ları {bucket_text}; SUCCESS etiketi {success_n}/{len(rows)}; "
+                    f"ilk görünür sonraki süreç bağları {next_text}. Provider bucket ölçülmüş fiziksel mesafe veya teknik plan anlamına yükseltilmez."
+                )
+            else:
+                cards.append(
+                    f"Goalkeeper-restart context — {name}: {len(rows)} admitted goal-kick occurrences; provider distance buckets {bucket_text}; SUCCESS label {success_n}/{len(rows)}; "
+                    f"first-visible next-process bindings {next_text}. Provider buckets remain provider context rather than measured physical distance or tactical-plan truth."
+                )
+
+    game = rich.get("game_state_process_mix_context") or {}
+    if str(game.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        by_team: dict[str, list[dict[str, Any]]] = {}
+        for row in game.get("profiles") or []:
+            if isinstance(row, dict):
+                tid = str(row.get("team_identity_candidate_id") or "").strip()
+                if tid:
+                    by_team.setdefault(tid, []).append(row)
+        for team_id, rows in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+            name = teams.get(team_id, team_id)
+            bits: list[str] = []
+            for row in rows[:4]:
+                score = _score_state_human(row.get("score_state_candidate"), language) or ("skor bağlamı" if language == "tr" else "score context")
+                counts = row.get("process_family_counts") or {}
+                mix = ", ".join(f"{_football_family_label(k, language)} {int(v or 0)}" for k, v in sorted(counts.items()) if int(v or 0) > 0) or ("0" if language == "tr" else "0")
+                bits.append(f"{score}: {mix}")
+            if bits:
+                if language == "tr":
+                    cards.append(f"Skor-durumu süreç karışımı — {name}: " + "; ".join(bits) + ". Payda ilgili skor segmentinin görünür zaman maruziyetidir; nedensel skor-durumu açıklaması için ayrı evidence gerekir.")
+                else:
+                    cards.append(f"Score-state process mix — {name}: " + "; ".join(bits) + ". The denominator is visible exposure time in the relevant score segment; score state is contextual rather than causal explanation.")
+
+    return cards
+
+
+def _human_fusion_relation_cards(full_spine: dict[str, Any], language: str) -> list[str]:
+    chains = full_spine.get("intelligence_chains")
+    if not isinstance(chains, list) or not chains:
+        return []
+    relation_counts: Counter[str] = Counter()
+    admitted_counter = unresolved_counter = independent = correlated = dependency_challenge = 0
+    fusion_n = 0
+    for chain in chains:
+        if not isinstance(chain, dict):
+            continue
+        fusion = chain.get("fusion")
+        if not isinstance(fusion, dict):
+            continue
+        fusion_n += 1
+        relation_counts.update({str(k): int(v or 0) for k, v in (fusion.get("relation_counts") or {}).items()})
+        admitted_counter += int(fusion.get("admitted_counterevidence_count") or 0)
+        unresolved_counter += int(fusion.get("unresolved_counterevidence_count") or 0)
+        independent += int(fusion.get("independent_support_count") or 0)
+        correlated += int(fusion.get("correlated_or_unknown_support_count") or 0)
+        dependency_challenge += int(fusion.get("dependency_challenge_count") or 0)
+    if not fusion_n:
+        return []
+    rel = ", ".join(f"{k} {v}" for k, v in sorted(relation_counts.items()) if v) or "NONE"
+    if language == "tr":
+        return [
+            f"Kanıt ilişki özeti: {fusion_n} fusion kaydı; ilişkiler {rel}; admitted counterevidence {admitted_counter}, unresolved counterevidence {unresolved_counter}, "
+            f"dependency challenge {dependency_challenge}, bağımsız destek {independent}, correlated/unknown support {correlated}. "
+            "Nominal referans sayısı bağımsız destek sayısı olarak kullanılmıyor; counterevidence yalnız admitted comparison/dependency koşullarıyla yükseliyor."
+        ]
+    return [
+        f"Evidence-relation summary: {fusion_n} fusion records; relations {rel}; admitted counterevidence {admitted_counter}, unresolved counterevidence {unresolved_counter}, "
+        f"dependency challenges {dependency_challenge}, independent support {independent}, correlated/unknown support {correlated}. "
+        "Nominal reference count is not used as independent-support count; counterevidence is promoted only through admitted comparison/dependency conditions."
+    ]
 
 def build_human_analyst_report_tr(
     output_root: str | Path,
@@ -4999,6 +5205,8 @@ def build_human_analyst_report_tr(
     opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "tr") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "tr") if rich_current else []
+    specialist_cards = _human_residual_specialist_cards(rich, identity, "tr") if rich_current else []
+    fusion_relation_cards = _human_fusion_relation_cards(full_spine, "tr")
     mechanism_cards = _human_mechanism_cards(
         root,
         full_spine,
@@ -5102,6 +5310,15 @@ def build_human_analyst_report_tr(
         lines.extend(f"- {line}" for line in opponent_interaction_cards)
     else:
         lines.append("- Bu maçta M09 görünür takım-rakip etkileşim yüzeyi rapor kapsamına alınamadı.")
+    lines.extend(["", "[11A] BAĞLI UZMAN YÜZEYLER — CURRENT PRODUCER → ANALİST"])
+    if specialist_cards:
+        lines.extend(f"- {line}" for line in specialist_cards)
+    else:
+        lines.append("- Bu çalışmada ek specialist-synthesis kartı oluşmadı.")
+    if fusion_relation_cards:
+        lines.append("- Fusion / counterevidence / dependency özeti:")
+        lines.extend(f"  • {line}" for line in fusion_relation_cards)
+
     lines.extend(["", "[12] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
@@ -5154,6 +5371,8 @@ def build_human_analyst_report_en(
     opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "en") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "en") if rich_current else []
+    specialist_cards = _human_residual_specialist_cards(rich, identity, "en") if rich_current else []
+    fusion_relation_cards = _human_fusion_relation_cards(full_spine, "en")
     mechanism_cards = _human_mechanism_cards(
         root,
         full_spine,
@@ -5257,6 +5476,15 @@ def build_human_analyst_report_en(
         lines.extend(f"- {line}" for line in opponent_interaction_cards)
     else:
         lines.append("- The M09 visible team-opponent interaction surface was not admitted into this report run.")
+    lines.extend(["", "[11A] CONNECTED SPECIALIST SURFACES — CURRENT PRODUCER → ANALYST"])
+    if specialist_cards:
+        lines.extend(f"- {line}" for line in specialist_cards)
+    else:
+        lines.append("- No additional specialist-synthesis card is available in this run.")
+    if fusion_relation_cards:
+        lines.append("- Fusion / counterevidence / dependency summary:")
+        lines.extend(f"  • {line}" for line in fusion_relation_cards)
+
     lines.extend(["", "[12] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)

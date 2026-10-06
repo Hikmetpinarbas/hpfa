@@ -3796,3 +3796,156 @@ def test_visible_process_route_breadth_reaches_professional_report_without_tacti
     assert "taktik esneklik" not in text.casefold()
     assert "üstünlük" not in text.casefold()
 
+def test_residual_rich_specialist_surfaces_reach_human_cards_without_overclaim():
+    rich = {
+        "m01_possession_construction_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "eligible_process_signature_n": 12,
+                "visible_circulation_process_n": 8,
+                "goalkeeper_restart_context_n": 3,
+                "visible_circulation_fate_counts": {"LOSS_LINKED_VISIBLE": 4},
+                "possession_truth": False,
+                "possession_control_truth": False,
+                "tactical_plan_truth": False,
+            }],
+        },
+        "m02_progression_territory_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "eligible_process_signature_n": 12,
+                "provider_attack_axis_delta_admitted_process_n": 5,
+                "visible_end_zone_candidate_counts": {"FINAL_THIRD": 2, "PENALTY_AREA": 1},
+                "unresolved_start_zone_process_n": 7,
+                "unresolved_end_zone_process_n": 9,
+                "territory_is_possession_control_truth": False,
+                "provider_axis_delta_is_physical_distance_truth": False,
+            }],
+        },
+        "r01_ball_progression_system_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "coverage_state": "M01_AND_M02_VISIBLE",
+                "scalar_ball_progression_score_emitted": False,
+                "component_views_create_independent_support": False,
+            }],
+        },
+        "m06_transition_dynamics_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "counterattack_context_n": 6,
+                "counter_to_positional_successor_candidate_n": 4,
+                "counterattack_successor_latency_observed_n": 5,
+                "counterattack_successor_latency_min_candidate": 4.0,
+                "counterattack_successor_latency_max_candidate": 31.0,
+                "transition_phase_truth": False,
+                "momentum_truth": False,
+                "tactical_adaptation_truth": False,
+            }],
+        },
+        "m07_defensive_process_visible_exposure_response_synthesis": {
+            "status": "REVIEW_REQUIRED",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "opponent_team_identity_candidate_id": "team_b",
+                "opponent_visible_process_n": 10,
+                "opponent_shot_ending_process_n": 2,
+                "opponent_visible_loss_process_n": 4,
+                "taxonomy_coverage_state": "PARTIAL_VISIBLE_EXPOSURE_RESPONSE_ONLY",
+                "organized_defence_shape_truth": False,
+                "pressure_geometry_truth": False,
+                "defensive_success_truth": False,
+            }],
+        },
+        "goalkeeper_restart_consequence_context": {
+            "status": "PASS",
+            "rows": [{
+                "team_identity_candidate_id": "team_a",
+                "provider_distance_bucket_candidate": "LONG",
+                "pass_outcome_candidate": "SUCCESS",
+                "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+                "next_visible_process_family_candidates": ["POSITIONAL_ATTACK_CANDIDATE"],
+                "record_status": "PASS",
+            }],
+        },
+        "counterattack_next_process_context": {
+            "status": "PASS",
+            "counterattack_context_row_count": 6,
+            "counter_to_positional_successor_candidate_count": 4,
+            "next_visible_process_family_counts": {"POSITIONAL_ATTACK_CANDIDATE": 4},
+            "rows": [],
+        },
+        "game_state_process_mix_context": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "score_state_candidate": {"Alpha": 0, "Beta": 0},
+                "segment_duration_second_candidate": 600.0,
+                "process_family_counts": {"POSITIONAL_ATTACK_CANDIDATE": 5, "COUNTERATTACK_CANDIDATE": 1},
+                "process_family_rate_per_10_minutes": {"POSITIONAL_ATTACK_CANDIDATE": 5.0, "COUNTERATTACK_CANDIDATE": 1.0},
+                "rate_denominator_is_score_state_exposure_time": True,
+                "score_state_is_causal_explanation": False,
+            }],
+        },
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
+            {"team_identity_candidate_id": "team_b", "team_aliases_raw": ["Beta"]},
+        ]
+    }
+
+    cards = user_output_bundle._human_residual_specialist_cards(rich, identity, "tr")
+    joined = " ".join(cards)
+
+    assert "Kurulum/ilerleme bağlamı" in joined
+    assert "Geçiş-devam bağlamı" in joined
+    assert "Savunma maruziyeti/yanıt bağlamı" in joined
+    assert "Kaleci yeniden başlatma bağlamı" in joined
+    assert "Skor-durumu süreç karışımı" in joined
+    assert "fiziksel mesafe üstünlüğü" not in joined.casefold()
+    assert "taktik üstünlük sağladı" not in joined.casefold()
+    assert "baskı geometrisi kanıtı" not in joined.casefold()
+
+
+def test_fusion_relation_summary_surfaces_dependency_and_counterevidence_without_inflation():
+    full = {
+        "intelligence_chains": [
+            {"fusion": {
+                "fusion_status": "SUPPORTED",
+                "relation_counts": {"SUPPORTS": 2, "CONTEXTUALIZES": 1, "QUALIFIES": 1},
+                "admitted_counterevidence_count": 1,
+                "unresolved_counterevidence_count": 2,
+                "independent_support_count": 0,
+                "correlated_or_unknown_support_count": 3,
+                "dependency_challenge_count": 2,
+                "claim_ceiling": "fusion_relation_candidate_only",
+                "nominal_ref_count_is_independent_support_count": False,
+            }},
+            {"fusion": {
+                "fusion_status": "SUPPORTED",
+                "relation_counts": {"SUPPORTS": 1, "COMPLEMENTS": 2},
+                "admitted_counterevidence_count": 0,
+                "unresolved_counterevidence_count": 1,
+                "independent_support_count": 0,
+                "correlated_or_unknown_support_count": 2,
+                "dependency_challenge_count": 1,
+                "claim_ceiling": "fusion_relation_candidate_only",
+                "nominal_ref_count_is_independent_support_count": False,
+            }},
+        ]
+    }
+    cards = user_output_bundle._human_fusion_relation_cards(full, "tr")
+    joined = " ".join(cards)
+    assert "Kanıt ilişki özeti" in joined
+    assert "SUPPORTS 3" in joined
+    assert "CONTEXTUALIZES 1" in joined
+    assert "admitted counterevidence 1" in joined
+    assert "dependency challenge 3" in joined
+    assert "bağımsız destek 0" in joined
+    assert "referans sayısı bağımsız destek sayısı olarak kullanılmıyor" in joined
+
