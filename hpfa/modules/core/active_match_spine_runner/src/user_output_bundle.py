@@ -1428,6 +1428,85 @@ def _human_circulation_fate_cards(rich: dict[str, Any], identity: dict[str, Any]
     return cards
 
 
+def _human_process_route_breadth_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
+    context = rich.get("visible_process_route_breadth_profile") or {}
+    if str(context.get("status") or "").upper() != "PASS":
+        return []
+    profiles = [row for row in (context.get("profiles") or []) if isinstance(row, dict)]
+    if not profiles:
+        return []
+
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+    for row in sorted(
+        profiles,
+        key=lambda item: (
+            teams.get(str(item.get("team_identity_candidate_id") or ""), ""),
+            str(item.get("process_family_candidate") or ""),
+        ),
+    ):
+        # Fail closed if any stronger route/tactical interpretation leaked upstream.
+        if any(
+            row.get(flag) is not False
+            for flag in (
+                "route_is_physical_trajectory_truth",
+                "route_is_line_break_truth",
+                "route_breadth_is_tactical_flexibility_truth",
+                "route_breadth_is_unpredictability_truth",
+                "route_breadth_is_superiority_truth",
+                "coach_intention_truth",
+            )
+        ):
+            continue
+
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        team = teams.get(team_id, team_id or ("Takım çözümlenmedi" if language == "tr" else "Team unresolved"))
+        family = _football_family_label(row.get("process_family_candidate"), language)
+        eligible = int(row.get("eligible_process_n") or 0)
+        route_n = int(row.get("eligible_unambiguous_route_process_n") or 0)
+        unresolved_n = int(row.get("ambiguous_or_unresolved_route_process_n") or 0)
+        unique_n = int(row.get("unique_visible_route_candidate_n") or 0)
+        recurring_n = int(row.get("recurring_visible_route_candidate_n") or 0)
+        top_route = str(row.get("top_visible_route_candidate") or "").strip()
+        top_n = int(row.get("top_visible_route_process_n") or 0)
+
+        if eligible <= 0 or route_n <= 0 or unique_n <= 0:
+            continue
+
+        if language == "tr":
+            football = (
+                f"{team} — {family}: {route_n}/{eligible} süreçte tekil başlangıç→bitiş rotası adayı çözüldü; "
+                f"{unique_n} farklı görünür rota adayı, {recurring_n} tekrarlanan rota adayı."
+            )
+            if top_route and top_n > 0:
+                football += f" En sık görünür rota adayı {top_route} {top_n}/{route_n}."
+            if unresolved_n:
+                football += f" {unresolved_n} süreçte başlangıç/bitiş rota bağlamı belirsiz veya çözümlenmemiş kaldı."
+            evidence = (
+                "Kanıt notu: bu yüzey yalnız admitted süreç imzalarındaki tekil görünür başlangıç ve bitiş bölge adaylarını özetler. "
+                "Fiziksel rota, gerçek oyuncu/top yolu, line-break, taktik esneklik, öngörülemezlik, üstünlük ve teknik ekip niyeti çıkarımı yapmaz."
+            )
+        else:
+            football = (
+                f"{team} — {family}: a single visible start→end route candidate was resolved in {route_n}/{eligible} processes; "
+                f"{unique_n} distinct visible route candidates, {recurring_n} recurring route candidates."
+            )
+            if top_route and top_n > 0:
+                football += f" Most frequent visible route candidate: {top_route} {top_n}/{route_n}."
+            if unresolved_n:
+                football += f" Start/end route context remained ambiguous or unresolved in {unresolved_n} processes."
+            evidence = (
+                "Evidence note: this surface summarizes only single visible start- and end-zone candidates from admitted process signatures. "
+                "It does not establish physical trajectory, actual player/ball path, line breaks, tactical flexibility, unpredictability, superiority, or coaching intention."
+            )
+        cards.extend([football, evidence])
+    return cards
+
+
 def _human_set_piece_process_cards(
     rich: dict[str, Any],
     identity: dict[str, Any],
@@ -4395,6 +4474,10 @@ def _build_hp_football_report_tr_v0(output_root: str | Path, full_spine: dict[st
         _human_circulation_fate_cards(rich, identity, "tr") if rich_current else [],
         limit=6,
     )
+    route_breadth = _hp_take_clean(
+        _human_process_route_breadth_cards(rich, identity, "tr") if rich_current else [],
+        limit=4,
+    )
     score_state = _hp_take_clean(
         _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else [],
         limit=4,
@@ -4457,6 +4540,12 @@ def _build_hp_football_report_tr_v0(output_root: str | Path, full_spine: dict[st
         lines.extend(f"- {line}" for line in team_profile)
     else:
         lines.append("- Topla oyunun ilerleme ve üretim yolları bu maçta yeterince ayrıştırılamadı.")
+
+    lines.extend(["", "GÖRÜNÜR SÜREÇ ROTALARI"])
+    if route_breadth:
+        lines.extend(f"- {line}" for line in route_breadth)
+    else:
+        lines.append("- Başlangıç ve bitiş bölgesi birlikte çözülebilen süreçlerde güvenli bir rota çeşitliliği özeti oluşmadı.")
 
     lines.extend(["", "TOP KAYBI VE KAZANIM SONRASI"])
     if loss_recovery:
@@ -4853,6 +4942,7 @@ def build_human_analyst_report_tr(
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "tr") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "tr") if rich_current else []
+    route_breadth_cards = _human_process_route_breadth_cards(rich, identity, "tr") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "tr") if rich_current else []
     set_piece_cards = _human_set_piece_process_cards(rich, identity, "tr") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "tr") if rich_current else []
@@ -4912,6 +5002,11 @@ def build_human_analyst_report_tr(
         lines.extend(f"- {line}" for line in circulation_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde raporlanabilir dolaşım-kader yüzeyi yok.")
+    lines.extend(["", "[3A] GÖRÜNÜR SÜREÇ ROTALARI"])
+    if route_breadth_cards:
+        lines.extend(f"- {line}" for line in route_breadth_cards)
+    else:
+        lines.append("- Bu maçta güvenli biçimde raporlanabilir görünür süreç rota-breadth yüzeyi yok.")
     lines.extend(["", "[4] HAVA TOPU → İLK GÖRÜNÜR DEVAM"])
     if aerial_cards:
         lines.extend(f"- {line}" for line in aerial_cards)
@@ -5002,6 +5097,7 @@ def build_human_analyst_report_en(
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "en") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "en") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "en") if rich_current else []
+    route_breadth_cards = _human_process_route_breadth_cards(rich, identity, "en") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "en") if rich_current else []
     set_piece_cards = _human_set_piece_process_cards(rich, identity, "en") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "en") if rich_current else []
@@ -5061,6 +5157,11 @@ def build_human_analyst_report_en(
         lines.extend(f"- {line}" for line in circulation_cards)
     else:
         lines.append("- No safely reportable circulation-fate surface is available for this match.")
+    lines.extend(["", "[3A] VISIBLE PROCESS ROUTES"])
+    if route_breadth_cards:
+        lines.extend(f"- {line}" for line in route_breadth_cards)
+    else:
+        lines.append("- No safely reportable visible process route-breadth surface is available for this match.")
     lines.extend(["", "[4] AERIAL DUEL → FIRST VISIBLE CONTINUATION"])
     if aerial_cards:
         lines.extend(f"- {line}" for line in aerial_cards)
