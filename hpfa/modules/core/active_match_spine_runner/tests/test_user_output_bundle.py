@@ -772,6 +772,16 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
                                     "OPPONENT_HANDOVER_CANDIDATE": 2,
                                     "SAME_TEAM_CONTINUATION_CANDIDATE": 1,
                                 },
+                                "actor_context_challenge_contract": {
+                                    "observed_variation_state": "MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT",
+                                    "challenge_type_candidate": "UNDERCUT_CANDIDATE",
+                                    "target_claim_component_bound": False,
+                                    "typed_defeat_admitted": False,
+                                    "counterevidence_target_binding_state": "UNRESOLVED_NO_EXPLICIT_TARGET_CLAIM_COMPONENT",
+                                    "withdrawal_condition_candidates": [
+                                        "QUALIFY_OR_WITHDRAW_IF_PLAYER_NARRATIVE_REQUIRES_UNIFORM_VISIBLE_OUTCOME"
+                                    ],
+                                },
                                 "actor_caused_consequence_truth": False,
                                 "actor_induced_opponent_response_truth": False,
                                 "actor_consequence_context_is_causal_contribution_truth": False,
@@ -823,6 +833,56 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     assert "ortalama pozisyon" not in text.lower()
     assert "tracking konumu" not in text.lower()
 
+
+def test_team_process_cards_do_not_infer_variation_challenge_from_counts_without_contract() -> None:
+    rich = {"constructs": {"C03": {"team_process_profiles": [{
+        "team_identity_candidate_id": "team_a",
+        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+        "eligible_process_n": 3,
+        "shot_ending_process_n": 0,
+        "visible_loss_process_n": 0,
+        "visible_recovery_process_n": 0,
+        "visible_consequence_response_profile": {"process_presence_counts": {}},
+        "visible_actor_location_participation_profile": {
+            "actor_location_observable_process_n": 2,
+            "eligible_location_temporal_layer_n": 2,
+            "pass_only_temporal_layer_excluded_n": 0,
+            "actor_location_actor_profiles": [{
+                "actor_identity_candidate_id": "actor_1",
+                "visible_process_presence_n": 2,
+                "anchor_observation_n": 2,
+            }],
+            "actor_location_actor_consequence_context_profiles": [{
+                "actor_identity_candidate_id": "actor_1",
+                "shot_ending_actor_location_process_n": 0,
+                "non_shot_actor_location_process_n": 2,
+                "consequence_process_presence_counts": {
+                    "OPPONENT_HANDOVER_CANDIDATE": 1,
+                    "SAME_TEAM_CONTINUATION_CANDIDATE": 1,
+                },
+                "actor_context_challenge_contract": {
+                    "observed_variation_state": "NO_MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT",
+                    "challenge_type_candidate": "NOT_APPLICABLE",
+                    "target_claim_component_bound": False,
+                    "typed_defeat_admitted": False,
+                    "withdrawal_condition_candidates": [],
+                },
+            }],
+        },
+    }]}}}
+    identity = {
+        "team_identity_candidates": [{"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"}],
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_aliases_raw": ["Player One"],
+            "validated_player_identity": True,
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+        }],
+    }
+    text = "\n".join(user_output_bundle._human_team_process_cards(rich, identity, "tr"))
+    assert "1 tanesinde rakibe geçiş" in text
+    assert "1 tanesinde aynı takım devamı görüldü" in text
+    assert "tek yönlü sonuç anlatısı qualify edilmeli" not in text
 
 
 def test_team_process_cards_accumulate_actor_consequence_context_across_process_families() -> None:

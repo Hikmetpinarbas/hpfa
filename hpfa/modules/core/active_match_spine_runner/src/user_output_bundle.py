@@ -830,6 +830,7 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                         "shot_ending_actor_location_process_n": 0,
                         "non_shot_actor_location_process_n": 0,
                         "consequence_process_presence_counts": {},
+                        "actor_context_challenge_contracts": [],
                     },
                 )
                 aggregate["shot_ending_actor_location_process_n"] += int(
@@ -841,6 +842,9 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 consequence_counts = aggregate["consequence_process_presence_counts"]
                 for key, count in (actor_context.get("consequence_process_presence_counts") or {}).items():
                     consequence_counts[str(key)] = int(consequence_counts.get(str(key)) or 0) + int(count or 0)
+                challenge_contract = actor_context.get("actor_context_challenge_contract")
+                if isinstance(challenge_contract, dict):
+                    aggregate["actor_context_challenge_contracts"].append(dict(challenge_contract))
             for actor_profile in actor_location.get("actor_location_actor_profiles") or []:
                 if not isinstance(actor_profile, dict):
                     continue
@@ -875,6 +879,18 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
             if top_actor_location
             else {}
         )
+        top_actor_challenge_contracts = [
+            row
+            for row in (top_actor_context.get("actor_context_challenge_contracts") or [])
+            if isinstance(row, dict)
+        ]
+        top_actor_mixed_challenge = any(
+            row.get("observed_variation_state")
+            == "MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT"
+            and row.get("challenge_type_candidate") == "UNDERCUT_CANDIDATE"
+            and bool(row.get("withdrawal_condition_candidates"))
+            for row in top_actor_challenge_contracts
+        )
         if language == "tr":
             actor_location_sentence = ""
             if top_actor_location:
@@ -884,7 +900,7 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 context_sentence = ""
                 if handover_n or continuation_n:
                     challenge_sentence = ""
-                    if handover_n > 0 and continuation_n > 0:
+                    if top_actor_mixed_challenge:
                         challenge_sentence = (
                             " Aynı oyuncu bağlamında hem devam hem rakip cevabı görünür; "
                             "tek yönlü sonuç anlatısı qualify edilmeli ve yalnız ek kanıtla genişletilmelidir."
@@ -929,7 +945,7 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 context_sentence = ""
                 if handover_n or continuation_n:
                     challenge_sentence = ""
-                    if handover_n > 0 and continuation_n > 0:
+                    if top_actor_mixed_challenge:
                         challenge_sentence = (
                             " Both continuation and opponent-response contexts are visible for the same actor; "
                             "a one-direction outcome narrative should remain qualified unless additional evidence supports it."
