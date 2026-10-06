@@ -4056,6 +4056,7 @@ def test_process_actor_concentration_reaches_player_function_review_without_rela
     assert "Player One + Player Two 4" in joined
     assert "pas ilişkisi" in joined
     assert "ayrı evidence gerekir" in joined
+    assert "aynı process instance içindeki gözlenebilir eş-katılımdır" in joined
     assert "vazgeçilmez oyuncu" not in joined.casefold()
     assert "taktik esneklik kanıtı" not in joined.casefold()
 
