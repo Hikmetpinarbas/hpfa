@@ -4685,6 +4685,10 @@ def build_hp_football_report_tr(
     teams = _human_team_labels(identity)
     actors = _human_admitted_actor_labels(identity)
     profiles = _hp_profile_rows(rich)
+    route_breadth = _hp_take_clean(
+        _human_process_route_breadth_cards(rich, identity, "tr") if rich_current else [],
+        limit=4,
+    )
 
     by_team: dict[str, dict[str, dict[str, Any]]] = {}
     for row in profiles:
@@ -4744,6 +4748,12 @@ def build_hp_football_report_tr(
                 lines.append(
                     f"- {_tr_possessive(name)} bu maçtaki şut üretimi kontra atak sayısından değil, daha çok yerleşik hücumların son bölümünden geldi."
                 )
+
+    lines.extend(["", "GÖRÜNÜR SÜREÇ ROTALARI"])
+    if route_breadth:
+        lines.extend(f"- {line}" for line in route_breadth)
+    else:
+        lines.append("- Başlangıç ve bitiş bölgesi birlikte çözülebilen süreçlerde güvenli bir rota çeşitliliği özeti oluşmadı.")
 
     lines.extend(["", "TOP KAYBI VE KAZANIM SONRASI"])
     loss = rich.get("loss_next_opponent_process_context") or {}

@@ -3755,7 +3755,7 @@ def test_visible_process_route_breadth_reaches_professional_report_without_tacti
     spine["rich_multiformat_analysis_lattice"] = rich
     spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
 
-    text = user_output_bundle._build_hp_football_report_tr_v0(tmp_path, spine)
+    text = user_output_bundle.build_hp_football_report_tr(tmp_path, spine)
 
     assert "GÖRÜNÜR SÜREÇ ROTALARI" in text
     assert "Alpha — yerleşik hücum" in text
