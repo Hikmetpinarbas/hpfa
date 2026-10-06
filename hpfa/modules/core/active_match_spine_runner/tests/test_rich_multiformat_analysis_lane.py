@@ -1988,6 +1988,17 @@ def test_c03_actor_location_consequence_context_is_descriptive_not_causal() -> N
     assert actor["actor_induced_opponent_response_truth"] is False
     assert actor["actor_consequence_context_is_causal_contribution_truth"] is False
     assert actor["actor_consequence_context_creates_independent_support"] is False
+    challenge = actor["actor_context_challenge_contract"]
+    assert challenge["observed_variation_state"] == "MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT"
+    assert challenge["counterevidence_state"] == "UNRESOLVED_NO_EXPLICIT_TARGET_CLAIM"
+    assert challenge["challenge_type_candidate"] == "UNDERCUT_CANDIDATE"
+    assert challenge["target_component_candidate"] == "PLAYER_OUTCOME_STABILITY_WARRANT"
+    assert challenge["variation_can_challenge_uniform_outcome_hypothesis"] is True
+    assert challenge["variation_is_counterevidence_truth"] is False
+    assert challenge["variation_is_causal_refutation"] is False
+    assert challenge["withdrawal_condition_candidates"] == [
+        "QUALIFY_OR_WITHDRAW_IF_PLAYER_NARRATIVE_REQUIRES_UNIFORM_VISIBLE_OUTCOME"
+    ]
 
 
 def test_c03_preserves_full_occurrence_pool_across_multiple_processes():

@@ -817,6 +817,8 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     assert "1 tanesinde aynı takım devamı görüldü" in text
     assert "claim kapsamı maç-içi görünür bağlamla sınırlıdır" in text
     assert "nedensel oyuncu katkısı için ek kanıt gerekir" in text
+    assert "Aynı oyuncu bağlamında hem devam hem rakip cevabı görünür" in text
+    assert "tek yönlü sonuç anlatısı qualify edilmeli" in text
     assert "kalıcı rol" not in text.lower()
     assert "ortalama pozisyon" not in text.lower()
     assert "tracking konumu" not in text.lower()

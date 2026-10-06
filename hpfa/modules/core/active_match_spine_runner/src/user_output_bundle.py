@@ -883,10 +883,17 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 continuation_n = int(consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
                 context_sentence = ""
                 if handover_n or continuation_n:
+                    challenge_sentence = ""
+                    if handover_n > 0 and continuation_n > 0:
+                        challenge_sentence = (
+                            " Aynı oyuncu bağlamında hem devam hem rakip cevabı görünür; "
+                            "tek yönlü sonuç anlatısı qualify edilmeli ve yalnız ek kanıtla genişletilmelidir."
+                        )
                     context_sentence = (
                         f" Bu actor-location bağlamındaki süreçlerin {handover_n} tanesinde rakibe geçiş, "
                         f"{continuation_n} tanesinde aynı takım devamı görüldü; "
                         "bu eşleşmenin claim kapsamı maç-içi görünür bağlamla sınırlıdır; nedensel oyuncu katkısı için ek kanıt gerekir."
+                        f"{challenge_sentence}"
                     )
                 actor_location_sentence = (
                     f" Kimliği admitted olan {top_actor_location[2]} "
@@ -921,9 +928,16 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 continuation_n = int(consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
                 context_sentence = ""
                 if handover_n or continuation_n:
+                    challenge_sentence = ""
+                    if handover_n > 0 and continuation_n > 0:
+                        challenge_sentence = (
+                            " Both continuation and opponent-response contexts are visible for the same actor; "
+                            "a one-direction outcome narrative should remain qualified unless additional evidence supports it."
+                        )
                     context_sentence = (
                         f" Within those actor-location contexts, {handover_n} processes showed opponent handover and "
-                        f"{continuation_n} same-team continuation; this co-observation is not causal player contribution."
+                        f"{continuation_n} same-team continuation; this co-observation is match-local context only."
+                        f"{challenge_sentence}"
                     )
                 actor_location_sentence = (
                     f" Admitted identity {top_actor_location[2]} appeared in actor-location participation across "

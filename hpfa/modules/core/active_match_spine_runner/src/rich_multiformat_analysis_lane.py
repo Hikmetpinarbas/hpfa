@@ -3843,6 +3843,46 @@ def _construct_c03(
                 "visible_process_spread_is_stable_role_truth": False,
                 "visible_process_spread_is_player_importance_truth": False,
             })
+            consequence_counts = dict(sorted(
+                actor_consequence_process_presence_counts.get(actor_id, Counter()).items()
+            ))
+            same_team_continuation_n = int(
+                consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0
+            )
+            opponent_response_n = sum(
+                int(consequence_counts.get(key) or 0)
+                for key in (
+                    "OPPONENT_HANDOVER_CANDIDATE",
+                    "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE",
+                )
+            )
+            mixed_visible_context = same_team_continuation_n > 0 and opponent_response_n > 0
+            actor_context_challenge_contract = {
+                "observed_variation_state": (
+                    "MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT"
+                    if mixed_visible_context
+                    else "NO_MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT"
+                ),
+                "counterevidence_state": "UNRESOLVED_NO_EXPLICIT_TARGET_CLAIM",
+                "challenge_type_candidate": (
+                    "UNDERCUT_CANDIDATE" if mixed_visible_context else "NOT_APPLICABLE"
+                ),
+                "target_component_candidate": (
+                    "PLAYER_OUTCOME_STABILITY_WARRANT" if mixed_visible_context else None
+                ),
+                "variation_can_challenge_uniform_outcome_hypothesis": mixed_visible_context,
+                "variation_is_counterevidence_truth": False,
+                "variation_is_causal_refutation": False,
+                "variation_creates_independent_support": False,
+                "variation_can_authorize_emit": False,
+                "variation_can_strengthen_claim_ceiling": False,
+                "withdrawal_condition_candidates": (
+                    ["QUALIFY_OR_WITHDRAW_IF_PLAYER_NARRATIVE_REQUIRES_UNIFORM_VISIBLE_OUTCOME"]
+                    if mixed_visible_context
+                    else []
+                ),
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_ACTOR_CONTEXT_CHALLENGE_ONLY",
+            }
             actor_location_actor_consequence_context_profiles.append({
                 "actor_identity_candidate_id": actor_id,
                 "actor_location_observable_process_n": presence_n,
@@ -3852,9 +3892,8 @@ def _construct_c03(
                 "non_shot_actor_location_process_n": int(
                     actor_non_shot_location_process_counts.get(actor_id) or 0
                 ),
-                "consequence_process_presence_counts": dict(sorted(
-                    actor_consequence_process_presence_counts.get(actor_id, Counter()).items()
-                )),
+                "consequence_process_presence_counts": consequence_counts,
+                "actor_context_challenge_contract": actor_context_challenge_contract,
                 "consequence_counts_are_process_presence_not_occurrence_volume": True,
                 "actor_caused_consequence_truth": False,
                 "actor_induced_opponent_response_truth": False,
