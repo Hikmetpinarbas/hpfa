@@ -3760,7 +3760,7 @@ def test_visible_process_route_breadth_reaches_professional_report_without_tacti
     assert "GÖRÜNÜR SÜREÇ ROTALARI" in text
     assert "Alpha — yerleşik hücum" in text
     assert "6/8 süreçte tekil başlangıç→bitiş rotası" in text
-    assert "3 farklı görünür rota" in text
+    assert "3 farklı rota adayı" in text
     assert "MIDDLE THIRD→FINAL THIRD 3" in text
     assert "fiziksel rota" not in text.casefold()
     assert "taktik esneklik" not in text.casefold()

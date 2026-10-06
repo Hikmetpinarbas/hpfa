@@ -1472,6 +1472,7 @@ def _human_process_route_breadth_cards(
         unique_n = int(row.get("unique_visible_route_candidate_n") or 0)
         recurring_n = int(row.get("recurring_visible_route_candidate_n") or 0)
         top_route = str(row.get("top_visible_route_candidate") or "").strip()
+        top_route_display = top_route.replace("_", " ").replace("->", "→")
         top_n = int(row.get("top_visible_route_process_n") or 0)
 
         if eligible <= 0 or route_n <= 0 or unique_n <= 0:
@@ -1483,12 +1484,11 @@ def _human_process_route_breadth_cards(
                 f"{unique_n} farklı görünür rota adayı, {recurring_n} tekrarlanan rota adayı."
             )
             if top_route and top_n > 0:
-                football += f" En sık görünür rota adayı {top_route} {top_n}/{route_n}."
+                football += f" En sık görünür rota adayı {top_route_display} {top_n}/{route_n}."
             if unresolved_n:
                 football += f" {unresolved_n} süreçte başlangıç/bitiş rota bağlamı belirsiz veya çözümlenmemiş kaldı."
             evidence = (
-                "Kanıt notu: bu yüzey yalnız admitted süreç imzalarındaki tekil görünür başlangıç ve bitiş bölge adaylarını özetler. "
-                "Fiziksel rota, gerçek oyuncu/top yolu, line-break, taktik esneklik, öngörülemezlik, üstünlük ve teknik ekip niyeti çıkarımı yapmaz."
+                "Kanıt notu: bu yüzey yalnız admitted süreç imzalarındaki tekil görünür başlangıç ve bitiş bölge adaylarını özetler; fiziksel rota, gerçek oyuncu/top yolu, line-break, taktik esneklik, öngörülemezlik, üstünlük ve teknik ekip niyeti çıkarımı yapmaz."
             )
         else:
             football = (
@@ -1496,12 +1496,11 @@ def _human_process_route_breadth_cards(
                 f"{unique_n} distinct visible route candidates, {recurring_n} recurring route candidates."
             )
             if top_route and top_n > 0:
-                football += f" Most frequent visible route candidate: {top_route} {top_n}/{route_n}."
+                football += f" Most frequent visible route candidate: {top_route_display} {top_n}/{route_n}."
             if unresolved_n:
                 football += f" Start/end route context remained ambiguous or unresolved in {unresolved_n} processes."
             evidence = (
-                "Evidence note: this surface summarizes only single visible start- and end-zone candidates from admitted process signatures. "
-                "It does not establish physical trajectory, actual player/ball path, line breaks, tactical flexibility, unpredictability, superiority, or coaching intention."
+                "Evidence note: this surface summarizes only single visible start- and end-zone candidates from admitted process signatures; it does not establish physical trajectory, actual player/ball path, line breaks, tactical flexibility, unpredictability, superiority, or coaching intention."
             )
         cards.extend([football, evidence])
     return cards
