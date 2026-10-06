@@ -3867,8 +3867,27 @@ def _construct_c03(
                 "challenge_type_candidate": (
                     "UNDERCUT_CANDIDATE" if mixed_visible_context else "NOT_APPLICABLE"
                 ),
+                "typed_defeat_type_candidate": (
+                    "UNDERCUT" if mixed_visible_context else "NOT_APPLICABLE"
+                ),
+                "challenge_scope_candidate": (
+                    "VISIBLE_OUTCOME_STABILITY_LINK" if mixed_visible_context else "NOT_APPLICABLE"
+                ),
                 "target_component_candidate": (
                     "PLAYER_OUTCOME_STABILITY_WARRANT" if mixed_visible_context else None
+                ),
+                "target_component_type_candidate": (
+                    "INFERENCE_WARRANT" if mixed_visible_context else "NOT_APPLICABLE"
+                ),
+                "target_component_ref_candidate": (
+                    "PLAYER_OUTCOME_STABILITY_WARRANT" if mixed_visible_context else None
+                ),
+                "target_claim_component_bound": False,
+                "typed_defeat_admitted": False,
+                "counterevidence_target_binding_state": (
+                    "UNRESOLVED_NO_EXPLICIT_TARGET_CLAIM_COMPONENT"
+                    if mixed_visible_context
+                    else "NOT_APPLICABLE_NO_OBSERVED_VARIATION_CHALLENGE"
                 ),
                 "variation_can_challenge_uniform_outcome_hypothesis": mixed_visible_context,
                 "variation_is_counterevidence_truth": False,

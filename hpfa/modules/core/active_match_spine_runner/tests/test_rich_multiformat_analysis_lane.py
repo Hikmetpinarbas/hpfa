@@ -1989,6 +1989,14 @@ def test_c03_actor_location_consequence_context_is_descriptive_not_causal() -> N
     assert actor["actor_consequence_context_is_causal_contribution_truth"] is False
     assert actor["actor_consequence_context_creates_independent_support"] is False
     challenge = actor["actor_context_challenge_contract"]
+    assert challenge["typed_defeat_type_candidate"] == "UNDERCUT"
+    assert challenge["target_component_type_candidate"] == "INFERENCE_WARRANT"
+    assert challenge["target_component_ref_candidate"] == "PLAYER_OUTCOME_STABILITY_WARRANT"
+    assert challenge["target_claim_component_bound"] is False
+    assert challenge["typed_defeat_admitted"] is False
+    assert challenge["counterevidence_target_binding_state"] == "UNRESOLVED_NO_EXPLICIT_TARGET_CLAIM_COMPONENT"
+    assert challenge["challenge_scope_candidate"] == "VISIBLE_OUTCOME_STABILITY_LINK"
+    challenge = actor["actor_context_challenge_contract"]
     assert challenge["observed_variation_state"] == "MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT"
     assert challenge["counterevidence_state"] == "UNRESOLVED_NO_EXPLICIT_TARGET_CLAIM"
     assert challenge["challenge_type_candidate"] == "UNDERCUT_CANDIDATE"
