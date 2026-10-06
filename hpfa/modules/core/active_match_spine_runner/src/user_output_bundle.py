@@ -5060,23 +5060,23 @@ def _human_process_actor_concentration_cards(
         if language == "tr":
             text = (
                 f"Oyuncu süreç yoğunlaşması — {team}, {family_label}: actor annotation coverage {coverage}; "
-                f"{top_actor} {top_actor_n}/{observed_n} gözlenebilir süreçte yer aldı."
+                f"{top_actor} {top_actor_n}/{observed_n} gözlenebilir süreçte yer aldı; kapsam aynı process instance içindeki gözlenebilir eş-katılımdır."
             )
             if top_dyad_text:
-                text += f" En sık aynı süreçte birlikte görünme: {top_dyad_text}."
-            text += (
-                " Bu birlikte-görünmenin kapsamı aynı process instance içindeki gözlenebilir eş-katılımdır; pas ilişkisi, nedensel işbirliği, vazgeçilmezlik, kalıcı rol, taktik esneklik ve oyuncu değeri yorumları için ayrı evidence gerekir."
-            )
+                text += (
+                    f" En sık aynı süreçte birlikte görünme: {top_dyad_text}; pas ilişkisi, nedensel işbirliği, kalıcı rol, "
+                    "taktik esneklik ve oyuncu değeri yorumları için ayrı evidence gerekir."
+                )
         else:
             text = (
                 f"Player process concentration — {team}, {family_label}: actor-annotation coverage {coverage}; "
-                f"{top_actor} appeared in {top_actor_n}/{observed_n} observable processes."
+                f"{top_actor} appeared in {top_actor_n}/{observed_n} observable processes; scope is observable co-participation within the same process instance."
             )
             if top_dyad_text:
-                text += f" Most frequent same-process co-appearance: {top_dyad_text}."
-            text += (
-                " Co-appearance is scoped to observable co-participation within the same process instance; pass-relation, causal-collaboration, indispensability, persistent-role, tactical-flexibility, and player-value interpretations require separate evidence."
-            )
+                text += (
+                    f" Most frequent same-process co-appearance: {top_dyad_text}; pass-relation, causal-collaboration, persistent-role, "
+                    "tactical-flexibility, and player-value interpretations require separate evidence."
+                )
         cards.append(text)
     return cards
 
