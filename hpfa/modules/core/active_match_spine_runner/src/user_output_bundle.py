@@ -5053,7 +5053,13 @@ def _human_process_actor_concentration_cards(
             dyad_id, dyad_n = max(dyads.items(), key=lambda item: (item[1], item[0]))
             parts = dyad_id.split("|")
             if len(parts) == 2 and parts[0] in actors and parts[1] in actors:
-                top_dyad_text = f"{actors[parts[0]]} + {actors[parts[1]]} {dyad_n}"
+                left = actors[parts[0]]
+                right = actors[parts[1]]
+                left_bits = left.split(". ", 1)
+                right_bits = right.split(". ", 1)
+                left_display = left_bits[1] if len(left_bits) == 2 and left_bits[0].isdigit() else left
+                right_display = right_bits[1] if len(right_bits) == 2 and right_bits[0].isdigit() else right
+                top_dyad_text = f"{left_display} + {right_display} {dyad_n}"
         team = teams.get(team_id, team_id)
         family_label = _football_family_label(family, language)
         coverage = f"{coverage_num}/{coverage_den}" if coverage_den > 0 else str(observed_n)

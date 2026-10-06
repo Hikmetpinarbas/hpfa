@@ -4019,8 +4019,8 @@ def test_short_professional_report_surfaces_context_conditioned_player_function_
 def test_process_actor_concentration_reaches_player_function_review_without_relation_inference(tmp_path):
     identity = {
         "actor_identity_candidates": [
-            {"actor_identity_candidate_id": "a1", "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True, "actor_aliases_raw": ["Player One"]},
-            {"actor_identity_candidate_id": "a2", "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True, "actor_aliases_raw": ["Player Two"]},
+            {"actor_identity_candidate_id": "a1", "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True, "actor_aliases_raw": ["10. Player One"]},
+            {"actor_identity_candidate_id": "a2", "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True, "actor_aliases_raw": ["19. Player Two"]},
         ],
         "team_identity_candidates": [
             {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
@@ -4052,7 +4052,7 @@ def test_process_actor_concentration_reaches_player_function_review_without_rela
     joined = " ".join(cards)
 
     assert "Oyuncu süreç yoğunlaşması" in joined
-    assert "Player One 8/10" in joined
+    assert "10. Player One 8/10" in joined
     assert "Player One + Player Two 4" in joined
     assert "pas ilişkisi" in joined
     assert "ayrı evidence gerekir" in joined
