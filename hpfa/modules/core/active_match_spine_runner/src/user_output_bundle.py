@@ -3680,6 +3680,21 @@ def _human_c02_cards(
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; maç içi betimleyici oran karşılaştırması={float(lift):.2f}x"
+            if entity_type == "DYAD":
+                dyad_pool_n = int(c02.get("selection_scope_dyad_candidate_count") or 0)
+                shared_target_n = int(candidate.get("target_process_ref_overlap_count_with_other_dyads") or 0)
+                unique_target_n = int(candidate.get("unique_to_this_dyad_target_process_ref_count") or 0)
+                shared_episode_n = int(candidate.get("target_episode_ref_overlap_count_with_other_dyads") or 0)
+                if dyad_pool_n:
+                    evidence += f"; current match gridinde {dyad_pool_n} ikili aday post-hoc tarandı"
+                if shared_target_n or unique_target_n or shared_episode_n:
+                    evidence += (
+                        f"; {shared_target_n} target örneği başka ikililerle aynı episode'u paylaşıyor; "
+                        f"{unique_target_n} target örneği bu ikiliye özgü"
+                    )
+                    if shared_episode_n:
+                        evidence += f"; paylaşılan target episode sayısı={shared_episode_n}"
+                    evidence += "; episode/dyad örtüşmesi bağımsız destek değildir"
             evidence += (
                 ". Bu profil maç-içi betimleyici association yüzeyidir ve analyst-review önceliği üretir. "
                 "Oyuncu adı yalnız kabul edilmiş maç-içi oyuncu etiketidir; global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır."
@@ -3705,6 +3720,21 @@ def _human_c02_cards(
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; match-local descriptive ratio={float(lift):.2f}x"
+            if entity_type == "DYAD":
+                dyad_pool_n = int(c02.get("selection_scope_dyad_candidate_count") or 0)
+                shared_target_n = int(candidate.get("target_process_ref_overlap_count_with_other_dyads") or 0)
+                unique_target_n = int(candidate.get("unique_to_this_dyad_target_process_ref_count") or 0)
+                shared_episode_n = int(candidate.get("target_episode_ref_overlap_count_with_other_dyads") or 0)
+                if dyad_pool_n:
+                    evidence += f"; {dyad_pool_n} pair candidates were screened post-hoc in the current match grid"
+                if shared_target_n or unique_target_n or shared_episode_n:
+                    evidence += (
+                        f"; {shared_target_n} target examples share an episode with other pairs; "
+                        f"{unique_target_n} target examples are unique to this pair"
+                    )
+                    if shared_episode_n:
+                        evidence += f"; shared target episode count={shared_episode_n}"
+                    evidence += "; episode/pair overlap is not independent support"
             evidence += (
                 ". This profile is a match-local descriptive association surface for analyst review. "
                 "The player name is only an admitted actor-identity label; global/cross-match player identity remains outside scope."

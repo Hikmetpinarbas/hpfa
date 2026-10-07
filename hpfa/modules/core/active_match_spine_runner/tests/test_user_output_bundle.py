@@ -4165,3 +4165,62 @@ def test_dual_view_turkish_card_survives_professional_cleaner_as_complete_footba
     assert "nedensel katkı sayılmaz" in cleaned[0]
     assert "provider" not in cleaned[0].casefold()
     assert "occurrence" not in cleaned[0].casefold()
+
+
+def test_c02_dyad_card_exposes_search_space_and_episode_reuse_without_partnership_upgrade():
+    rich = {
+        "constructs": {
+            "C02": {
+                "selection_scope_actor_candidate_count": 9,
+                "selection_scope_dyad_candidate_count": 14,
+                "candidate_generation_state": "POSTHOC_EXHAUSTIVE_MATCH_LOCAL_ACTOR_DYAD_GRID",
+                "selection_bias_state": "POSTHOC_ATTENTION_SELECTION_REVIEW_REQUIRED",
+                "representative_actor_argument": None,
+                "representative_dyad_argument": {
+                    "actor_identity_candidate_ids": ["a1", "a2"],
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "eligible_n": 5,
+                    "visible_target_annotation_k": 2,
+                    "target_outcome_unresolved_u": 3,
+                    "eligible_episode_spread": 4,
+                    "positive_episode_spread": 2,
+                    "observed_visible_target_annotation_frequency": 0.4,
+                    "match_local_baseline_shot_frequency": 0.25,
+                    "descriptive_lift": 1.6,
+                    "target_process_ref_overlap_count_with_other_dyads": 1,
+                    "unique_to_this_dyad_target_process_ref_count": 1,
+                    "target_episode_ref_overlap_count_with_other_dyads": 1,
+                    "overlapping_dyad_candidate_count": 3,
+                    "repeated_episode_burden_state": "SHARED_TARGET_EPISODE_REUSE_PRESENT",
+                },
+            }
+        }
+    }
+    identity = {
+        "actor_identity_candidates": [
+            {
+                "actor_identity_candidate_id": "a1",
+                "actor_aliases_raw": ["7. Player One"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
+                "supporting_evidence_atom_ids": ["ea1"],
+            },
+            {
+                "actor_identity_candidate_id": "a2",
+                "actor_aliases_raw": ["11. Player Two"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
+                "supporting_evidence_atom_ids": ["ea2"],
+            },
+        ]
+    }
+
+    cards = user_output_bundle._human_c02_cards(rich, identity, "tr")
+    joined = " ".join(cards)
+
+    assert "14 ikili aday" in joined
+    assert "1 target örneği başka ikililerle aynı episode'u paylaşıyor" in joined
+    assert "1 target örneği bu ikiliye özgü" in joined
+    assert "bağımsız destek değildir" in joined
+    assert "özel ortaklık" not in joined.casefold()
+    assert "nedensel katkı" not in joined.casefold()

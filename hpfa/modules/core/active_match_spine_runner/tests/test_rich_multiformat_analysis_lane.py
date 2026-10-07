@@ -3050,3 +3050,48 @@ def test_c03_preserves_multi_dimensional_semantic_facets_without_splitting_one_l
     assert profile["semantic_rule_layer_counts"]["plvs_v2_progressive_passes_accurate"] == 1
     assert profile["same_occurrence_multi_facet_is_not_multiple_action_truth"] is True
     assert profile["temporal_layer_is_not_physical_touch"] is True
+
+
+def test_c02_search_space_and_dyad_overlap_anatomy_exposes_posthoc_and_shared_episode_burden():
+    payload = _c02_process_payload()
+    # Add a third actor to the first target-annotated process only. This creates
+    # overlapping AB / AC / BC dyads that reuse the same target episode.
+    first_context = next(
+        row for row in payload["process_participation_candidates"]
+        if row["semantic_role"] == "CONTEXT_INTERVAL"
+        and row["start_candidate"] == "10"
+    )
+    payload["process_participation_candidates"].append({
+        **first_context,
+        "process_participation_candidate_id": "participant_1_actor_third",
+        "semantic_role": "PARTICIPATION_INTERVAL",
+        "actor_identity_candidate_id": "actor_third",
+    })
+    identity = _c02_identity()
+    identity["actor_identity_candidates"].append({
+        "actor_identity_candidate_id": "actor_third",
+        "actor_aliases_raw": ["Third Player"],
+        "team_identity_candidate_id": "team_fener",
+    })
+
+    result = _construct_c02(_c02_xlsx_rows(), identity, payload)
+
+    assert result["candidate_generation_state"] == "POSTHOC_EXHAUSTIVE_MATCH_LOCAL_ACTOR_DYAD_GRID"
+    assert result["family_search_space_n"] == 1
+    assert result["actor_candidate_search_space_n"] == result["selection_scope_actor_candidate_count"]
+    assert result["dyad_candidate_search_space_n"] == result["selection_scope_dyad_candidate_count"]
+    assert result["selection_bias_state"] == "POSTHOC_ATTENTION_SELECTION_REVIEW_REQUIRED"
+    assert result["candidate_search_space_is_independent_support"] is False
+
+    ab = next(
+        row for row in result["dyad_argument_candidates"]
+        if set(row["actor_identity_candidate_ids"]) == {"actor_kerem", "actor_guendouzi"}
+    )
+    assert ab["target_process_ref_overlap_count_with_other_dyads"] >= 1
+    assert "context_1" in ab["target_process_refs_shared_with_other_dyads"]
+    assert "context_2" in ab["unique_to_this_dyad_target_process_refs"]
+    assert ab["unique_to_this_dyad_target_process_ref_count"] == 1
+    assert ab["repeated_episode_burden_state"] == "SHARED_TARGET_EPISODE_REUSE_PRESENT"
+    assert "ep_1" in ab["target_episode_refs_shared_with_other_dyads"]
+    assert ab["dyad_overlap_is_independent_support"] is False
+    assert ab["shared_target_episode_is_recurrence_truth"] is False

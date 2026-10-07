@@ -2759,6 +2759,51 @@ def _construct_c02(
             "dyad_candidate_count": len(dyad_candidates),
         })
 
+    # Search-space and dependency anatomy: these fields describe how the
+    # match-local actor/dyad grid was generated and where target episodes are
+    # reused across dyads. They do not create additional evidence or stability.
+    for candidate in all_dyad_candidates:
+        target_process_refs = {
+            str(value) for value in (candidate.get("shot_process_refs") or []) if str(value)
+        }
+        target_episode_refs = {
+            str(value) for value in (candidate.get("positive_episode_refs") or []) if str(value)
+        }
+        other_target_process_refs: set[str] = set()
+        other_target_episode_refs: set[str] = set()
+        overlapping_dyad_candidate_count = 0
+        for other in all_dyad_candidates:
+            if other is candidate:
+                continue
+            other_processes = {
+                str(value) for value in (other.get("shot_process_refs") or []) if str(value)
+            }
+            other_episodes = {
+                str(value) for value in (other.get("positive_episode_refs") or []) if str(value)
+            }
+            if target_process_refs & other_processes or target_episode_refs & other_episodes:
+                overlapping_dyad_candidate_count += 1
+            other_target_process_refs.update(other_processes)
+            other_target_episode_refs.update(other_episodes)
+        shared_process_refs = sorted(target_process_refs & other_target_process_refs)
+        unique_process_refs = sorted(target_process_refs - other_target_process_refs)
+        shared_episode_refs = sorted(target_episode_refs & other_target_episode_refs)
+        candidate["target_process_refs_shared_with_other_dyads"] = shared_process_refs
+        candidate["target_process_ref_overlap_count_with_other_dyads"] = len(shared_process_refs)
+        candidate["unique_to_this_dyad_target_process_refs"] = unique_process_refs
+        candidate["unique_to_this_dyad_target_process_ref_count"] = len(unique_process_refs)
+        candidate["target_episode_refs_shared_with_other_dyads"] = shared_episode_refs
+        candidate["target_episode_ref_overlap_count_with_other_dyads"] = len(shared_episode_refs)
+        candidate["overlapping_dyad_candidate_count"] = overlapping_dyad_candidate_count
+        candidate["repeated_episode_burden_state"] = (
+            "SHARED_TARGET_EPISODE_REUSE_PRESENT"
+            if shared_episode_refs
+            else "NO_SHARED_TARGET_EPISODE_REUSE_OBSERVED"
+        )
+        candidate["dyad_overlap_is_independent_support"] = False
+        candidate["shared_target_episode_is_recurrence_truth"] = False
+        candidate["shared_target_episode_is_pair_specific_surplus"] = False
+
     def priority(row: dict[str, Any]) -> tuple[Any, ...]:
         lift = row.get("match_local_lift")
         return (
@@ -2839,6 +2884,13 @@ def _construct_c02(
         "epistemic_review_contract_can_authorize_emit": False,
         "selection_scope_actor_candidate_count": len(all_actor_candidates),
         "selection_scope_dyad_candidate_count": len(all_dyad_candidates),
+        "candidate_generation_state": "POSTHOC_EXHAUSTIVE_MATCH_LOCAL_ACTOR_DYAD_GRID",
+        "family_search_space_n": len(family_profiles),
+        "actor_candidate_search_space_n": len(all_actor_candidates),
+        "dyad_candidate_search_space_n": len(all_dyad_candidates),
+        "selection_bias_state": "POSTHOC_ATTENTION_SELECTION_REVIEW_REQUIRED",
+        "candidate_search_space_is_independent_support": False,
+        "candidate_search_space_is_population_inference": False,
         "selection_is_posthoc_attention_ranking": True,
         "no_p_value_eliminates_selection_multiplicity_risk": False,
         "ranked_extreme_is_stable_signal": False,
