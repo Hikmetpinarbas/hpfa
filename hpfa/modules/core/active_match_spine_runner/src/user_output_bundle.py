@@ -800,21 +800,21 @@ def _human_dual_view_process_participant_cards(
         if language == "tr":
             relation = {
                 "EXACT_VISIBLE_ACTOR_SET_MATCH": "iki görünümde aynı oyuncu seti",
-                "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION": "occurrence görünümü provider katılımının alt kümesi",
+                "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION": "aksiyon görünümü süreç katılım görünümünün alt kümesi",
                 "PARTIAL_VISIBLE_ACTOR_SET_OVERLAP": "iki görünüm kısmen örtüşüyor",
-                "OCCURRENCE_ONLY_ACTOR_REVIEW_REQUIRED": "yalnız occurrence actor görünümü var",
-                "PROVIDER_ONLY_PARTICIPANT_WITHOUT_OCCURRENCE_ROLE": "yalnız provider katılım görünümü var",
+                "OCCURRENCE_ONLY_ACTOR_REVIEW_REQUIRED": "yalnız aksiyon üzerinde oyuncu görünümü var",
+                "PROVIDER_ONLY_PARTICIPANT_WITHOUT_OCCURRENCE_ROLE": "yalnız süreç katılım görünümü var",
             }.get(state, "görünümler çözümlenemedi")
-            cards.append(f"{team} — {family}: occurrence actor görünümü [{occ}]; provider process katılımı [{prov}]. {relation}. Bu yalnız iki observation yüzeyinin kapsam farkıdır; provider-only oyuncu hata, görünmeyen rol, taktik görev veya nedensel katkı sayılmaz.")
+            cards.append(f"{team} — {family}: aksiyon görünümünde [{occ}]; süreç katılım kaydında [{prov}]. {relation}. İki kayıt farklı kapsam taşır; yalnız süreç katılımında görülen oyuncu hata, görünmeyen rol, taktik görev veya nedensel katkı sayılmaz.")
         else:
             relation = {
                 "EXACT_VISIBLE_ACTOR_SET_MATCH": "the two views contain the same visible actor set",
-                "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION": "the occurrence view is a subset of provider participation",
+                "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION": "the action-linked view is a subset of the process-participation view",
                 "PARTIAL_VISIBLE_ACTOR_SET_OVERLAP": "the two views partially overlap",
-                "OCCURRENCE_ONLY_ACTOR_REVIEW_REQUIRED": "only the occurrence-actor view is visible",
-                "PROVIDER_ONLY_PARTICIPANT_WITHOUT_OCCURRENCE_ROLE": "only provider participation is visible",
+                "OCCURRENCE_ONLY_ACTOR_REVIEW_REQUIRED": "only the action-linked player view is visible",
+                "PROVIDER_ONLY_PARTICIPANT_WITHOUT_OCCURRENCE_ROLE": "only the process-participation view is visible",
             }.get(state, "the views remain unresolved")
-            cards.append(f"{team} — {family}: occurrence-actor view [{occ}]; provider process participation [{prov}]. {relation}. This describes coverage of two observation views only; a provider-only player is not an error, unseen role, tactical assignment, or causal contribution.")
+            cards.append(f"{team} — {family}: action-linked players [{occ}]; process-participation players [{prov}]. {relation}. The two records cover different observable scopes; a player seen only in process participation is not an error, unseen role, tactical assignment, or causal contribution.")
     return cards
 
 

@@ -4121,10 +4121,47 @@ def test_dual_view_process_participant_cards_reach_human_output_without_role_ove
     assert "yerleşik hücum" in rendered
     assert "Player A" in rendered
     assert "Player B" in rendered
-    assert "occurrence" in rendered.casefold()
-    assert "provider" in rendered.casefold()
+    assert "aksiyon görünümü" in rendered.casefold()
+    assert "süreç katılım" in rendered.casefold()
     assert "off-ball" not in rendered.casefold()
     assert "taktik rol" not in rendered.casefold()
     assert "katkı sağladı" not in rendered.casefold()
     assert "katkısı" not in rendered.casefold()
     assert "taktik rolü" not in rendered.casefold()
+
+
+def test_dual_view_turkish_card_survives_professional_cleaner_as_complete_football_sentence(tmp_path):
+    sequence_path = tmp_path / "visible_action_sequence_candidates_lite_v1.json"
+    sequence_path.write_text(json.dumps({
+        "dual_view_process_participant_binding_consumed": True,
+        "partial_order_occurrence_variants": [{
+            "partial_order_occurrence_variant_id": "v1",
+            "team_identity_candidate_id": "team_a",
+            "comparison_process_context_families": ["POSITIONAL_ATTACK_CANDIDATE"],
+            "occurrence_actor_refs": ["actor_a"],
+            "provider_participant_actor_refs": ["actor_a", "actor_b"],
+            "participant_view_relation_state": "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION",
+        }],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }), encoding="utf-8")
+    identity = {
+        "team_identity_candidates": [{"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]}],
+        "actor_identity_candidates": [
+            {"actor_identity_candidate_id": "actor_a", "actor_aliases_raw": ["Player A"], "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True},
+            {"actor_identity_candidate_id": "actor_b", "actor_aliases_raw": ["Player B"], "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True},
+        ],
+    }
+    spine = _full_spine(current_artifacts=[str(sequence_path)])
+    raw = user_output_bundle._human_dual_view_process_participant_cards(tmp_path, spine, identity, "tr")
+    cleaned = user_output_bundle._hp_take_clean(raw, limit=2)
+    assert len(cleaned) == 1
+    assert "Alpha — yerleşik hücum" in cleaned[0]
+    assert "Player A" in cleaned[0]
+    assert "Player B" in cleaned[0]
+    assert "aksiyon görünümü" in cleaned[0]
+    assert "süreç katılım" in cleaned[0]
+    assert "nedensel katkı sayılmaz" in cleaned[0]
+    assert "provider" not in cleaned[0].casefold()
+    assert "occurrence" not in cleaned[0].casefold()
