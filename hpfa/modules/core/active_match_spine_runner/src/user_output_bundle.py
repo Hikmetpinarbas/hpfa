@@ -3694,7 +3694,7 @@ def _human_c02_cards(
                     )
                     if shared_episode_n:
                         evidence += f"; paylaşılan target episode sayısı={shared_episode_n}"
-                    evidence += "; episode/dyad örtüşmesi bağımsız destek değildir"
+                    evidence += "; bağımsız destek için ayrı lineage/independence kanıtı gerekir"
             evidence += (
                 ". Bu profil maç-içi betimleyici association yüzeyidir ve analyst-review önceliği üretir. "
                 "Oyuncu adı yalnız kabul edilmiş maç-içi oyuncu etiketidir; global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır."

@@ -4221,6 +4221,6 @@ def test_c02_dyad_card_exposes_search_space_and_episode_reuse_without_partnershi
     assert "14 ikili aday" in joined
     assert "1 target örneği başka ikililerle aynı episode'u paylaşıyor" in joined
     assert "1 target örneği bu ikiliye özgü" in joined
-    assert "bağımsız destek değildir" in joined
+    assert "bağımsız destek için ayrı lineage/independence kanıtı gerekir" in joined
     assert "özel ortaklık" not in joined.casefold()
     assert "nedensel katkı" not in joined.casefold()
