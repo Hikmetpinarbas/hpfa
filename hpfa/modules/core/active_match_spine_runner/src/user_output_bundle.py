@@ -765,6 +765,59 @@ def _grammar_token_human(value: Any, language: str) -> str:
     return _grammar_human([token], language)
 
 
+def _human_dual_view_process_participant_cards(
+    root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str
+) -> list[str]:
+    if not _declared_current(full_spine, VISIBLE_SEQUENCE_JSON):
+        return []
+    sequence = _load_json(root / VISIBLE_SEQUENCE_JSON)
+    if sequence.get("dual_view_process_participant_binding_consumed") is not True:
+        return []
+    teams = _human_team_labels(identity)
+    actors = _human_admitted_actor_labels(identity)
+    cards: list[str] = []
+    seen = set()
+    for row in sequence.get("partial_order_occurrence_variants") or []:
+        if not isinstance(row, dict):
+            continue
+        state = str(row.get("participant_view_relation_state") or "UNRESOLVED")
+        if state == "UNRESOLVED":
+            continue
+        team_ref = str(row.get("team_identity_candidate_id") or "").strip()
+        families = [str(v) for v in (row.get("comparison_process_context_families") or []) if str(v)]
+        occurrence_refs = [str(v) for v in (row.get("occurrence_actor_refs") or []) if str(v) in actors]
+        provider_refs = [str(v) for v in (row.get("provider_participant_actor_refs") or []) if str(v) in actors]
+        if not team_ref or not families or (not occurrence_refs and not provider_refs):
+            continue
+        key = (team_ref, families[0], tuple(sorted(occurrence_refs)), tuple(sorted(provider_refs)))
+        if key in seen:
+            continue
+        seen.add(key)
+        team = teams.get(team_ref, team_ref)
+        family = _football_family_label(families[0], language)
+        occ = ", ".join(actors[v] for v in occurrence_refs) or ("çözümlenmedi" if language == "tr" else "unresolved")
+        prov = ", ".join(actors[v] for v in provider_refs) or ("çözümlenmedi" if language == "tr" else "unresolved")
+        if language == "tr":
+            relation = {
+                "EXACT_VISIBLE_ACTOR_SET_MATCH": "iki görünümde aynı oyuncu seti",
+                "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION": "occurrence görünümü provider katılımının alt kümesi",
+                "PARTIAL_VISIBLE_ACTOR_SET_OVERLAP": "iki görünüm kısmen örtüşüyor",
+                "OCCURRENCE_ONLY_ACTOR_REVIEW_REQUIRED": "yalnız occurrence actor görünümü var",
+                "PROVIDER_ONLY_PARTICIPANT_WITHOUT_OCCURRENCE_ROLE": "yalnız provider katılım görünümü var",
+            }.get(state, "görünümler çözümlenemedi")
+            cards.append(f"{team} — {family}: occurrence actor görünümü [{occ}]; provider process katılımı [{prov}]. {relation}. Bu yalnız iki observation yüzeyinin kapsam farkıdır; provider-only oyuncu hata, görünmeyen rol, taktik görev veya nedensel katkı sayılmaz.")
+        else:
+            relation = {
+                "EXACT_VISIBLE_ACTOR_SET_MATCH": "the two views contain the same visible actor set",
+                "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION": "the occurrence view is a subset of provider participation",
+                "PARTIAL_VISIBLE_ACTOR_SET_OVERLAP": "the two views partially overlap",
+                "OCCURRENCE_ONLY_ACTOR_REVIEW_REQUIRED": "only the occurrence-actor view is visible",
+                "PROVIDER_ONLY_PARTICIPANT_WITHOUT_OCCURRENCE_ROLE": "only provider participation is visible",
+            }.get(state, "the views remain unresolved")
+            cards.append(f"{team} — {family}: occurrence-actor view [{occ}]; provider process participation [{prov}]. {relation}. This describes coverage of two observation views only; a provider-only player is not an error, unseen role, tactical assignment, or causal contribution.")
+    return cards
+
+
 def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
     profiles = [row for row in (c03.get("team_process_profiles") or []) if isinstance(row, dict)]
@@ -4760,6 +4813,9 @@ def build_hp_football_report_tr(
         _human_process_actor_concentration_cards(root, full_spine, identity, "tr"),
         limit=6,
     )
+    dual_view_participant_cards = _hp_take_clean(
+        _human_dual_view_process_participant_cards(root, full_spine, identity, "tr"), limit=6
+    )
     fusion_relation_cards = _hp_take_clean(_human_fusion_relation_cards(full_spine, "tr"), limit=2)
 
     by_team: dict[str, dict[str, dict[str, Any]]] = {}
@@ -4826,6 +4882,10 @@ def build_hp_football_report_tr(
         lines.extend(f"- {line}" for line in route_breadth)
     else:
         lines.append("- Başlangıç ve bitiş bölgesi birlikte çözülebilen süreçlerde güvenli bir rota çeşitliliği özeti oluşmadı.")
+
+    if dual_view_participant_cards:
+        lines.extend(["", "OYUNCU KATILIM GÖRÜNÜMLERİ"])
+        lines.extend(f"- {line}" for line in dual_view_participant_cards)
 
     lines.extend(["", "TOP KAYBI VE KAZANIM SONRASI"])
     loss = rich.get("loss_next_opponent_process_context") or {}
@@ -5509,6 +5569,7 @@ def build_human_analyst_report_en(
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "en") if rich_current else []
     specialist_cards = _human_residual_specialist_cards(rich, identity, "en") if rich_current else []
     actor_concentration_cards = _human_process_actor_concentration_cards(root, full_spine, identity, "en")
+    dual_view_participant_cards = _human_dual_view_process_participant_cards(root, full_spine, identity, "en")
     fusion_relation_cards = _human_fusion_relation_cards(full_spine, "en")
     mechanism_cards = _human_mechanism_cards(
         root,
@@ -5603,6 +5664,9 @@ def build_human_analyst_report_en(
     if player_mechanism_link_cards:
         lines.append("- Source-bound player ↔ mechanism links:")
         lines.extend(f"  • {line}" for line in player_mechanism_link_cards)
+    if dual_view_participant_cards:
+        lines.extend(["", "[9A] PLAYER PARTICIPATION VIEWS — OCCURRENCE ↔ PROVIDER"])
+        lines.extend(f"- {line}" for line in dual_view_participant_cards)
     lines.extend(["", "[10] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
