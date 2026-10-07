@@ -3861,6 +3861,37 @@ def test_residual_rich_specialist_surfaces_reach_human_cards_without_overclaim()
                 "defensive_success_truth": False,
             }],
         },
+        "visible_intervention_response_profile": {
+            "status": "PASS",
+            "row_count": 2,
+            "rows": [
+                {
+                    "attacking_team_identity_candidate_id": "team_a",
+                    "intervention_team_identity_candidate_id": "team_b",
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "intervention_action_family_candidates": ["INTERCEPTION"],
+                    "seconds_to_first_visible_intervention_candidate": 3.0,
+                    "provider_coordinate_displacement_candidate": 5.0,
+                    "intervention_followup_primary_consequence_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE",
+                },
+                {
+                    "attacking_team_identity_candidate_id": "team_a",
+                    "intervention_team_identity_candidate_id": "team_b",
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "intervention_action_family_candidates": ["TACKLE"],
+                    "seconds_to_first_visible_intervention_candidate": 6.0,
+                    "provider_coordinate_displacement_candidate": 8.0,
+                    "intervention_followup_primary_consequence_candidate": "OPPONENT_HANDOVER_CANDIDATE",
+                },
+            ],
+            "provider_coordinate_displacement_is_physical_distance": False,
+            "visible_intervention_is_pressure_intensity_truth": False,
+            "visible_intervention_is_closing_speed_truth": False,
+            "visible_intervention_is_forced_error_truth": False,
+            "visible_intervention_is_defensive_success_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_INTERVENTION_RESPONSE_CONTEXT_ONLY",
+        },
         "goalkeeper_restart_consequence_context": {
             "status": "PASS",
             "rows": [{
@@ -3905,11 +3936,17 @@ def test_residual_rich_specialist_surfaces_reach_human_cards_without_overclaim()
     assert "Kurulum/ilerleme bağlamı" in joined
     assert "Geçiş-devam bağlamı" in joined
     assert "Savunma maruziyeti/yanıt bağlamı" in joined
+    assert "Görünür müdahale-yanıt bağlamı" in joined
+    assert "3.0–6.0 sn" in joined
+    assert "5.0–8.0 provider-koordinat birimi" in joined
     assert "Kaleci yeniden başlatma bağlamı" in joined
     assert "Skor-durumu süreç karışımı" in joined
     assert "fiziksel mesafe üstünlüğü" not in joined.casefold()
     assert "taktik üstünlük sağladı" not in joined.casefold()
     assert "baskı geometrisi kanıtı" not in joined.casefold()
+    assert "pres yoğunluğu" not in joined.casefold()
+    assert "kapanma hızı" not in joined.casefold()
+    assert "zorlanmış hata" not in joined.casefold()
     cleaned = user_output_bundle._hp_take_clean(cards, limit=10)
     cleaned_joined = " ".join(cleaned)
     assert "Kurulum/ilerleme bağlamı" in cleaned_joined

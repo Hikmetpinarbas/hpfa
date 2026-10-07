@@ -2912,6 +2912,131 @@ def _as_number(value: Any) -> float | None:
         return None
 
 
+
+def _visible_intervention_response_profile(
+    occurrence_consequence_payload: dict[str, Any],
+    trackable_trace_payload: dict[str, Any],
+    c03: dict[str, Any],
+) -> dict[str, Any]:
+    """Describe the first admitted visible opponent intervention within a process.
+
+    This is event/process-derived context only. Provider coordinate displacement stays
+    provider-coordinate context. Pressure intensity, closing speed, error causation,
+    defensive quality, physical distance, and causality require separate observation.
+    """
+    intervention_families = {"TACKLE", "INTERCEPTION", "BLOCK", "CLEARANCE"}
+    traces = {
+        str(row.get("trackable_action_trace_candidate_id") or ""): row
+        for row in (trackable_trace_payload.get("trackable_action_trace_candidates") or [])
+        if isinstance(row, dict) and row.get("trackable_action_trace_candidate_id")
+    }
+    consequences = [
+        row for row in (occurrence_consequence_payload.get("trackable_action_consequence_candidates") or [])
+        if isinstance(row, dict)
+    ]
+    consequence_by_anchor = {
+        str(row.get("anchor_trackable_action_trace_candidate_id") or ""): row
+        for row in consequences
+        if row.get("anchor_trackable_action_trace_candidate_id")
+    }
+    signatures = [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
+    rows: list[dict[str, Any]] = []
+
+    for consequence in consequences:
+        if str(consequence.get("first_eligible_consequence_binding_state") or "") != "SINGLE_FIRST_ELIGIBLE_FOLLOWUP":
+            continue
+        if str(consequence.get("first_eligible_team_relation") or "") != "OPPONENT":
+            continue
+        first_families = sorted({
+            str(value) for value in (consequence.get("first_eligible_action_family_candidates") or []) if value
+        })
+        if not (set(first_families) & intervention_families):
+            continue
+        followup_refs = [
+            str(value) for value in (consequence.get("first_eligible_follow_up_trace_ids") or []) if value
+        ]
+        if len(followup_refs) != 1:
+            continue
+        anchor_ref = str(consequence.get("anchor_trackable_action_trace_candidate_id") or "")
+        intervention_ref = followup_refs[0]
+        anchor = traces.get(anchor_ref)
+        intervention = traces.get(intervention_ref)
+        if not anchor or not intervention:
+            continue
+        attacking_team = str(consequence.get("team_identity_candidate_id") or anchor.get("team_identity_candidate_id") or "")
+        intervention_team = str(intervention.get("team_identity_candidate_id") or "")
+        period = str(consequence.get("period_candidate") or anchor.get("period_candidate") or "")
+        anchor_time = _as_number(anchor.get("start_candidate"))
+        if anchor_time is None:
+            continue
+        matching = []
+        for signature in signatures:
+            if str(signature.get("team_identity_candidate_id") or "") != attacking_team:
+                continue
+            if str(signature.get("period_candidate") or "") != period:
+                continue
+            start = _as_number(signature.get("process_start_candidate"))
+            end = _as_number(signature.get("process_end_candidate"))
+            if start is None or end is None or not (start <= anchor_time <= end):
+                continue
+            matching.append(signature)
+        if not matching:
+            continue
+        signature = min(
+            matching,
+            key=lambda row: (
+                (_as_number(row.get("process_end_candidate")) or anchor_time)
+                - (_as_number(row.get("process_start_candidate")) or anchor_time),
+                str(row.get("process_development_signature_id") or ""),
+            ),
+        )
+
+        seconds = _as_number(consequence.get("time_to_first_admitted_visible_state_change_seconds_candidate"))
+        if seconds is None:
+            intervention_time = _as_number(intervention.get("start_candidate"))
+            seconds = intervention_time - anchor_time if intervention_time is not None else None
+        ax = _as_number(anchor.get("pos_x_candidate")); ay = _as_number(anchor.get("pos_y_candidate"))
+        ix = _as_number(intervention.get("pos_x_candidate")); iy = _as_number(intervention.get("pos_y_candidate"))
+        displacement = None
+        if None not in {ax, ay, ix, iy}:
+            displacement = ((ix - ax) ** 2 + (iy - ay) ** 2) ** 0.5
+        intervention_followup = consequence_by_anchor.get(intervention_ref) or {}
+        rows.append({
+            "process_development_signature_id": signature.get("process_development_signature_id"),
+            "process_family_candidate": signature.get("process_family_candidate"),
+            "attacking_team_identity_candidate_id": attacking_team,
+            "intervention_team_identity_candidate_id": intervention_team,
+            "period_candidate": period,
+            "anchor_trackable_action_trace_candidate_id": anchor_ref,
+            "intervention_trackable_action_trace_candidate_id": intervention_ref,
+            "intervention_action_family_candidates": sorted(set(first_families) & intervention_families),
+            "seconds_to_first_visible_intervention_candidate": seconds,
+            "provider_coordinate_displacement_candidate": displacement,
+            "intervention_followup_primary_consequence_candidate": intervention_followup.get("primary_consequence_candidate"),
+            "provider_coordinate_displacement_is_physical_distance": False,
+            "visible_intervention_is_pressure_intensity_truth": False,
+            "visible_intervention_is_closing_speed_truth": False,
+            "visible_intervention_is_forced_error_truth": False,
+            "visible_intervention_is_defensive_success_truth": False,
+            "visible_intervention_is_causal_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_INTERVENTION_RESPONSE_CONTEXT_ONLY",
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "rows": rows,
+        "row_count": len(rows),
+        "intervention_action_families": sorted(intervention_families),
+        "provider_coordinate_displacement_is_physical_distance": False,
+        "visible_intervention_is_pressure_intensity_truth": False,
+        "visible_intervention_is_closing_speed_truth": False,
+        "visible_intervention_is_forced_error_truth": False,
+        "visible_intervention_is_defensive_success_truth": False,
+        "creates_independent_support": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_INTERVENTION_RESPONSE_CONTEXT_ONLY",
+    }
+
 def _strict_post_final_third_entry_profile(layers: list[dict[str, Any]]) -> dict[str, Any]:
     """Keep only activity strictly after a newly visible FINAL_THIRD access layer.
 
@@ -5623,6 +5748,11 @@ def run_rich_lane(
         c03.get("process_motif_family_candidates") or [],
         c03.get("process_variant_board") or {},
     )
+    visible_intervention_response_profile = _visible_intervention_response_profile(
+        occurrence_consequence_payload,
+        trackable_trace_payload,
+        c03,
+    )
     m09_opponent_interaction_synthesis = _m09_opponent_interaction_synthesis(c03)
     score_state_visible_process_outcome_context = build_score_state_visible_process_outcome_context(
         game_state_context,
@@ -5690,6 +5820,7 @@ def run_rich_lane(
         "time_window_process_mix_change_context": time_window_process_mix_change_context,
         "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
         "m09_opponent_interaction_synthesis": m09_opponent_interaction_synthesis,
+        "visible_intervention_response_profile": visible_intervention_response_profile,
         "m07_defensive_process_visible_exposure_response_synthesis": m07_defensive_process_visible_exposure_response_synthesis,
         "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
         "m02_progression_territory_synthesis": m02_progression_territory_synthesis,

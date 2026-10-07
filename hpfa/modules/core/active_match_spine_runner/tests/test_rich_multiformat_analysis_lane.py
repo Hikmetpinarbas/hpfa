@@ -11,7 +11,7 @@ if str(SRC) not in sys.path:
 from full_spine_runner import run_intelligence_chain
 import rich_multiformat_analysis_lane as rich_multiformat_analysis_lane
 from shared_surface_snapshot_contract import surface_snapshot_id
-from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _strict_post_final_third_entry_profile, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _counterattack_next_process_context, _access_terminal_bridge_profiles, _process_variant_board, _snapshot
+from rich_multiformat_analysis_lane import _construct_c01, _construct_c02, _construct_c03, _construct_c04, _strict_post_final_third_entry_profile, _entity_views, _phase_state_candidates, _football_ontology_contract, _game_state_context, _recovery_next_process_context, _goalkeeper_restart_consequence_context, _loss_next_opponent_process_context, _player_function_profiles, _set_piece_process_consequence_context, _game_state_process_mix_context, _counterattack_next_process_context, _access_terminal_bridge_profiles, _process_variant_board, _visible_intervention_response_profile, _snapshot
 from hpfa.modules.core.composite_evidence_packet_builder_lite.src.composite_evidence_packet_builder import build_composite_packet
 from hpfa.modules.core.xlsx_entity_metric_row_projection_lite.src.xlsx_entity_metric_row_projection import _project_sheet
 
@@ -3095,3 +3095,53 @@ def test_c02_search_space_and_dyad_overlap_anatomy_exposes_posthoc_and_shared_ep
     assert "ep_1" in ab["target_episode_refs_shared_with_other_dyads"]
     assert ab["dyad_overlap_is_independent_support"] is False
     assert ab["shared_target_episode_is_recurrence_truth"] is False
+
+
+def test_visible_intervention_response_profile_binds_time_provider_delta_and_followup_without_pressure_truth():
+    trace_payload = {
+        "trackable_action_trace_candidates": [
+            {"trackable_action_trace_candidate_id": "t_anchor", "team_identity_candidate_id": "team_a", "period_candidate": "1", "start_candidate": "20.0", "pos_x_candidate": "30.0", "pos_y_candidate": "40.0", "coordinate_evidence_status": "COORDINATE_PRESENT", "action_family_candidates": ["PASS"]},
+            {"trackable_action_trace_candidate_id": "t_intervention", "team_identity_candidate_id": "team_b", "period_candidate": "1", "start_candidate": "23.0", "pos_x_candidate": "34.0", "pos_y_candidate": "43.0", "coordinate_evidence_status": "COORDINATE_PRESENT", "action_family_candidates": ["INTERCEPTION"]},
+        ]
+    }
+    consequence_payload = {
+        "trackable_action_consequence_candidates": [
+            {"anchor_trackable_action_trace_candidate_id": "t_anchor", "anchor_action_family_candidates": ["PASS"], "period_candidate": "1", "team_identity_candidate_id": "team_a", "first_eligible_team_relation": "OPPONENT", "first_eligible_action_family_candidates": ["INTERCEPTION"], "first_eligible_follow_up_trace_ids": ["t_intervention"], "first_eligible_consequence_binding_state": "SINGLE_FIRST_ELIGIBLE_FOLLOWUP", "time_to_first_admitted_visible_state_change_observation_state": "OBSERVED_ADMITTED_AFTER", "time_to_first_admitted_visible_state_change_seconds_candidate": 3.0},
+            {"anchor_trackable_action_trace_candidate_id": "t_intervention", "anchor_action_family_candidates": ["INTERCEPTION"], "period_candidate": "1", "team_identity_candidate_id": "team_b", "primary_consequence_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE"},
+        ]
+    }
+    c03 = {"signatures": [{"process_development_signature_id": "sig_a", "team_identity_candidate_id": "team_a", "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE", "period_candidate": "1", "process_start_candidate": 10.0, "process_end_candidate": 30.0}]}
+    result = _visible_intervention_response_profile(consequence_payload, trace_payload, c03)
+    assert result["status"] == "PASS"
+    assert result["row_count"] == 1
+    row = result["rows"][0]
+    assert row["process_development_signature_id"] == "sig_a"
+    assert row["attacking_team_identity_candidate_id"] == "team_a"
+    assert row["intervention_team_identity_candidate_id"] == "team_b"
+    assert row["intervention_action_family_candidates"] == ["INTERCEPTION"]
+    assert row["seconds_to_first_visible_intervention_candidate"] == 3.0
+    assert row["provider_coordinate_displacement_candidate"] == 5.0
+    assert row["intervention_followup_primary_consequence_candidate"] == "SAME_TEAM_CONTINUATION_CANDIDATE"
+    assert row["provider_coordinate_displacement_is_physical_distance"] is False
+    assert row["visible_intervention_is_pressure_intensity_truth"] is False
+    assert row["visible_intervention_is_closing_speed_truth"] is False
+    assert row["visible_intervention_is_forced_error_truth"] is False
+    assert row["visible_intervention_is_defensive_success_truth"] is False
+    assert row["creates_independent_support"] is False
+    assert result["claim_ceiling"] == "MATCH_LOCAL_VISIBLE_INTERVENTION_RESPONSE_CONTEXT_ONLY"
+
+
+def test_visible_intervention_response_profile_rejects_non_intervention_and_multi_first_layer():
+    trace_payload = {"trackable_action_trace_candidates": [
+        {"trackable_action_trace_candidate_id": "a", "team_identity_candidate_id": "team_a", "period_candidate": "1", "start_candidate": "20", "action_family_candidates": ["PASS"]},
+        {"trackable_action_trace_candidate_id": "b", "team_identity_candidate_id": "team_b", "period_candidate": "1", "start_candidate": "22", "action_family_candidates": ["PASS"]},
+        {"trackable_action_trace_candidate_id": "c", "team_identity_candidate_id": "team_b", "period_candidate": "1", "start_candidate": "22", "action_family_candidates": ["TACKLE"]},
+    ]}
+    consequence_payload = {"trackable_action_consequence_candidates": [
+        {"anchor_trackable_action_trace_candidate_id": "a", "anchor_action_family_candidates": ["PASS"], "period_candidate": "1", "team_identity_candidate_id": "team_a", "first_eligible_team_relation": "OPPONENT", "first_eligible_action_family_candidates": ["PASS"], "first_eligible_follow_up_trace_ids": ["b"], "first_eligible_consequence_binding_state": "SINGLE_FIRST_ELIGIBLE_FOLLOWUP"},
+        {"anchor_trackable_action_trace_candidate_id": "a2", "anchor_action_family_candidates": ["CARRY"], "period_candidate": "1", "team_identity_candidate_id": "team_a", "first_eligible_team_relation": "OPPONENT", "first_eligible_action_family_candidates": ["TACKLE"], "first_eligible_follow_up_trace_ids": ["b", "c"], "first_eligible_consequence_binding_state": "MULTIPLE_FIRST_ELIGIBLE_FOLLOWUP_REVIEW_REQUIRED"},
+    ]}
+    c03 = {"signatures": [{"process_development_signature_id": "sig", "team_identity_candidate_id": "team_a", "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE", "period_candidate": "1", "process_start_candidate": 10.0, "process_end_candidate": 30.0}]}
+    result = _visible_intervention_response_profile(consequence_payload, trace_payload, c03)
+    assert result["row_count"] == 0
+    assert result["status"] == "NOT_AVAILABLE"

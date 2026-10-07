@@ -5294,6 +5294,62 @@ def _human_residual_specialist_cards(
                     "Scope is event/process-visible exposure and response; organized-defence shape, compactness, pressure geometry, forced-turnover and defensive-success interpretations require separate observations."
                 )
 
+    intervention = rich.get("visible_intervention_response_profile") or {}
+    if str(intervention.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        for row in intervention.get("rows") or []:
+            if not isinstance(row, dict):
+                continue
+            attacking_team = str(row.get("attacking_team_identity_candidate_id") or "").strip()
+            intervention_team = str(row.get("intervention_team_identity_candidate_id") or "").strip()
+            family = str(row.get("process_family_candidate") or "").strip()
+            if attacking_team and family:
+                grouped.setdefault((attacking_team, intervention_team, family), []).append(row)
+        for (attacking_team, intervention_team, family), rows in sorted(grouped.items()):
+            attack_name = teams.get(attacking_team, attacking_team)
+            defence_name = teams.get(intervention_team, intervention_team or ("rakip" if language == "tr" else "opponent"))
+            seconds = [float(row.get("seconds_to_first_visible_intervention_candidate")) for row in rows if isinstance(row.get("seconds_to_first_visible_intervention_candidate"), (int, float)) and not isinstance(row.get("seconds_to_first_visible_intervention_candidate"), bool)]
+            displacement = [float(row.get("provider_coordinate_displacement_candidate")) for row in rows if isinstance(row.get("provider_coordinate_displacement_candidate"), (int, float)) and not isinstance(row.get("provider_coordinate_displacement_candidate"), bool)]
+            families = Counter(
+                str(value)
+                for row in rows
+                for value in (row.get("intervention_action_family_candidates") or [])
+                if str(value)
+            )
+            followups = Counter(
+                str(row.get("intervention_followup_primary_consequence_candidate") or "UNRESOLVED")
+                for row in rows
+            )
+            second_text = (
+                f"{min(seconds):.1f}–{max(seconds):.1f} sn"
+                if seconds else ("çözümlenmedi" if language == "tr" else "unresolved")
+            )
+            displacement_text = (
+                f"{min(displacement):.1f}–{max(displacement):.1f} provider-koordinat birimi"
+                if displacement else ("çözümlenmedi" if language == "tr" else "unresolved")
+            )
+            family_text = ", ".join(
+                f"{_football_family_label(key, language)} {value}"
+                for key, value in sorted(families.items())
+            ) or ("çözümlenmedi" if language == "tr" else "unresolved")
+            followup_text = ", ".join(
+                f"{_display_label(key)} {value}"
+                for key, value in sorted(followups.items())
+            )
+            process_label = _football_family_label(family, language)
+            if language == "tr":
+                cards.append(
+                    f"Görünür müdahale-yanıt bağlamı — {attack_name}, {process_label}: {defence_name} tarafından {len(rows)} ilk tekil görünür müdahale; "
+                    f"müdahale aileleri {family_text}; ilk müdahaleye görünür süre {second_text}; provider koordinatındaki yer değiştirme {displacement_text}; "
+                    f"müdahale sonrası ilk görünür durumlar {followup_text}. Kapsam görünür müdahale zamanı, provider-koordinat değişimi ve ilk görünür devamdır; fiziksel/taktik baskı, oyuncu hızı, hata nedeni ve savunma kalitesi yorumları için ayrı observation gerekir."
+                )
+            else:
+                cards.append(
+                    f"Visible intervention-response context — {attack_name}, {process_label}: {len(rows)} first single visible interventions by {defence_name}; "
+                    f"intervention families {family_text}; visible time to first intervention {second_text}; provider-coordinate displacement {displacement_text}; "
+                    f"first visible post-intervention states {followup_text}. Scope is visible intervention timing, provider-coordinate change and first visible continuation; physical/tactical pressure, player speed, error-cause and defensive-quality interpretations require separate observation."
+                )
+
     gk = rich.get("goalkeeper_restart_consequence_context") or {}
     if str(gk.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
         by_team: dict[str, list[dict[str, Any]]] = {}
