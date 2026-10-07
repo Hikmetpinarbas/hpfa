@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 MODULE_ID = "active_match_full_system_match_diagnostic_v1"
 OUTPUT_JSON = "active_match_full_system_match_diagnostic_v1.json"
 OUTPUT_TXT = "active_match_full_system_match_diagnostic_v1.txt"
+FAILURE_MEMORY_JSON = "hpfa_failure_memory_v1.json"
 UNKNOWN = "UNKNOWN"
 
 
@@ -31,6 +34,146 @@ def _status(payload: dict[str, Any], default: str = "UNKNOWN") -> str:
         or payload.get("decision")
         or default
     ).upper()
+
+
+def _failure_memory_candidates(diagnostic: dict[str, Any]) -> list[dict[str, Any]]:
+    run_identity = diagnostic.get("run_identity") or {}
+    exact_head = str(run_identity.get("head") or UNKNOWN)
+    runtime_binding = str(run_identity.get("runtime_authority") or UNKNOWN)
+    match_package_fingerprint = str(
+        run_identity.get("match_package_fingerprint") or UNKNOWN
+    )
+
+    rows: list[dict[str, Any]] = []
+    for check in diagnostic.get("cross_artifact_consistency") or []:
+        if not isinstance(check, dict):
+            continue
+        if str(check.get("status") or "").upper() != "REVIEW_REQUIRED":
+            continue
+        violated_contract = str(check.get("check") or UNKNOWN)
+        reason = str(check.get("reason") or "REVIEW_REQUIRED")
+        identity_payload = {
+            "failure_family": "CROSS_ARTIFACT_CONSISTENCY_REVIEW",
+            "violated_contract": violated_contract,
+            "runtime_binding": runtime_binding,
+            "match_package_fingerprint": match_package_fingerprint,
+            "failure_reason_codes": [reason],
+        }
+        failure_id = "fm_" + hashlib.sha256(
+            json.dumps(identity_payload, sort_keys=True, ensure_ascii=True).encode("utf-8")
+        ).hexdigest()[:16]
+        rows.append({
+            "failure_id": failure_id,
+            "failure_family": "CROSS_ARTIFACT_CONSISTENCY_REVIEW",
+            "affected_capability": "cross_artifact_consistency",
+            "violated_contract": violated_contract,
+            "exact_head": exact_head,
+            "runtime_binding": runtime_binding,
+            "match_package_fingerprint": match_package_fingerprint,
+            "first_failed_stage": violated_contract,
+            "failure_reason_codes": [reason],
+            "claim_risk": "CLAIM_INTEGRITY_REVIEW_REQUIRED",
+            "repair_owner": "CURRENT_DIAGNOSTIC_OWNER_REVIEW_REQUIRED",
+            "repair_description": UNKNOWN,
+            "regression_test_ref": UNKNOWN,
+            "resolution_state": "OPEN_REVIEW",
+            "reoccurrence_count": 1,
+            "creates_new_evidence": False,
+            "creates_acceptance_authority": False,
+        })
+    return rows
+
+
+def _merge_failure_memory(
+    existing: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+    *,
+    observed_at: str,
+) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+
+    for row in existing:
+        if not isinstance(row, dict):
+            continue
+        failure_id = str(row.get("failure_id") or "").strip()
+        if not failure_id:
+            continue
+        if failure_id not in merged:
+            order.append(failure_id)
+        merged[failure_id] = dict(row)
+
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        failure_id = str(candidate.get("failure_id") or "").strip()
+        if not failure_id:
+            continue
+        previous = merged.get(failure_id)
+        if previous is None:
+            row = dict(candidate)
+            row["first_seen_at"] = observed_at
+            row["last_seen_at"] = observed_at
+            row["reoccurrence_count"] = int(row.get("reoccurrence_count") or 1)
+            merged[failure_id] = row
+            order.append(failure_id)
+            continue
+
+        row = dict(previous)
+        first_seen = str(previous.get("first_seen_at") or observed_at)
+        previous_count = previous.get("reoccurrence_count")
+        if not isinstance(previous_count, int) or isinstance(previous_count, bool):
+            previous_count = 1
+        row.update(candidate)
+        row["first_seen_at"] = first_seen
+        row["last_seen_at"] = observed_at
+        row["reoccurrence_count"] = previous_count + 1
+        row["creates_new_evidence"] = False
+        row["creates_acceptance_authority"] = False
+        merged[failure_id] = row
+
+    return [merged[failure_id] for failure_id in order]
+
+
+def write_failure_memory_registry(
+    root: Path,
+    diagnostic: dict[str, Any],
+    *,
+    observed_at: str | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    root = Path(root)
+    path = root / FAILURE_MEMORY_JSON
+    existing_records: list[dict[str, Any]] = []
+    if path.is_file():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        if isinstance(payload, dict) and isinstance(payload.get("records"), list):
+            existing_records = [
+                dict(row) for row in payload["records"] if isinstance(row, dict)
+            ]
+
+    timestamp = observed_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    candidates = _failure_memory_candidates(diagnostic)
+    merged = _merge_failure_memory(
+        existing_records,
+        candidates,
+        observed_at=timestamp,
+    )
+    payload = {
+        "module_id": "hpfa_failure_memory_v1",
+        "record_count": len(merged),
+        "records": merged,
+        "failure_memory_creates_new_evidence": False,
+        "failure_memory_creates_acceptance_authority": False,
+        "production_release": False,
+    }
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path, payload
 
 
 def _artifact_ledger(full_spine: dict[str, Any]) -> set[str]:
@@ -693,6 +836,115 @@ def build_diagnostic(
         {"node":"ANALYST OUTPUT","reached":(root/"HPFA_ANALYST_REPORT.txt").is_file(),"meaningful_object_count":1 if (root/"HPFA_ANALYST_REPORT.txt").is_file() else 0,"major_censoring":None,"unresolved_burden":"report is review output, not evidence","dependency_burden":"human text must remain under machine ceiling","next_barrier":"cross-artifact accounting consistency"},
     ]
 
+    spine_by_node = {
+        str(row.get("node")): row
+        for row in evidence_spine
+        if isinstance(row, dict) and row.get("node")
+    }
+
+    def _capability_stage_status(nodes: tuple[str, ...]) -> str:
+        rows = [spine_by_node.get(node, {}) for node in nodes]
+        reached = [bool(row.get("reached")) for row in rows]
+        if reached and all(reached):
+            unresolved = [
+                row.get("unresolved_burden")
+                for row in rows
+                if row.get("unresolved_burden") not in (None, "", [], {}, 0)
+            ]
+            return "DEGRADED" if unresolved else "AVAILABLE"
+        if any(reached):
+            return "DEGRADED"
+        return "NOT_REACHED"
+
+    passport_stage_specs = [
+        ("PRESERVED", ("SOURCE", "SURFACE"), ("multiformat_inventory",)),
+        (
+            "READABLE",
+            ("SURFACE", "OBSERVATION"),
+            ("csv_surface_reader", "xml_surface_reader", "xlsx_surface_reader"),
+        ),
+        (
+            "UNDERSTOOD",
+            ("SEMANTICS",),
+            ("provider_alias_field_semantics", "provider_label_value_semantics", "context_action_semantics_rebind"),
+        ),
+        (
+            "ADMITTED",
+            ("OBSERVATION", "IDENTITY/DEPENDENCY"),
+            ("evidence_atom_inventory", "match_local_identity", "action_occurrence_admission"),
+        ),
+        (
+            "SCENARIO_PLACED",
+            ("TIME/SPACE ADMISSION",),
+            ("event_window_builder", "spatial_transition_candidate", "occurrence_state_transition_projection"),
+        ),
+        (
+            "PROCESS_CONNECTED",
+            ("RELATION", "EPISODE/PROCESS"),
+            ("cross_role_relation_resolver", "process_participation_projection", "visible_action_sequence"),
+        ),
+        (
+            "CONSTRUCT_USABLE",
+            ("FEATURE", "METRIC/MODEL", "SIGNAL"),
+            ("grammar_stable_variant_feature_delta", "rich_multiformat_analysis_lattice", "metric_governance_bridge"),
+        ),
+        (
+            "FINDING_USABLE",
+            ("COUNTEREVIDENCE", "FINDING"),
+            ("variant_feature_challenge", "safe_finding_admission"),
+        ),
+        (
+            "ANALYST_EXPLAINABLE",
+            ("CLAIM", "ANALYST OUTPUT"),
+            ("analyst_output_claim_contract",),
+        ),
+    ]
+    capability_passport = {
+        "module_id": "enriched_package_capability_passport_v1",
+        "status": "REVIEW_REQUIRED",
+        "decision": "DESCRIBE_CURRENT_PACKAGE_CAPABILITY_WITHOUT_SCALAR_QUALITY_SCORE",
+        "capability_ladder": [
+            {
+                "stage": stage,
+                "status": _capability_stage_status(nodes),
+                "basis_spine_nodes": list(nodes),
+                "basis_components": list(basis_components),
+                "creates_new_evidence": False,
+                "creates_finding_authority": False,
+            }
+            for stage, nodes, basis_components in passport_stage_specs
+        ],
+        "observation_family_status": {
+            str(row.get("family")): (
+                "NOT_APPLICABLE"
+                if row.get("family") == "TRACKING/VIDEO"
+                else (
+                    "OPTIONAL_ABSENT"
+                    if row.get("family") == "EXTERNAL CONTEXT"
+                    and row.get("status") == "ABSENT"
+                    else row.get("status")
+                )
+            )
+            for row in capabilities
+            if isinstance(row, dict) and row.get("family")
+        },
+        "universal_provider_quality_score": None,
+        "scalar_quality_score_allowed": False,
+        "capability_passport_creates_new_evidence": False,
+        "capability_passport_creates_finding_authority": False,
+        "tracking_video_is_required_dependency": False,
+        "canonical_event_count": UNKNOWN,
+        "true_action_count": UNKNOWN,
+        "production_release": False,
+    }
+    ladder_statuses = {
+        str(row.get("status")) for row in capability_passport["capability_ladder"]
+    }
+    if ladder_statuses == {"AVAILABLE"}:
+        capability_passport["status"] = "PASS"
+    elif "NOT_REACHED" in ladder_statuses or "DEGRADED" in ladder_statuses:
+        capability_passport["status"] = "REVIEW_REQUIRED"
+
     machine_chain_count = full.get("intelligence_chain_count")
     human_chain_raw = _human_report_scalar(root, "intelligence_chain_count")
     try:
@@ -1105,6 +1357,7 @@ def build_diagnostic(
         },
         "observation_capability_coverage": capabilities,
         "evidence_spine_coverage": evidence_spine,
+        "enriched_package_capability_passport": capability_passport,
         "cross_artifact_consistency": consistency,
         "match_football_intelligence": match_intelligence,
         "top_defensible_process_mechanism_candidates": _top_mechanism_candidates(
@@ -1163,8 +1416,32 @@ def _render_text(diagnostic: dict[str, Any]) -> str:
             sort_keys=True,
         ),
         "",
-        "cross_artifact_consistency:",
+        "",
+        "[2B] ENRICHED PACKAGE CAPABILITY PASSPORT",
     ]
+    passport = diagnostic["enriched_package_capability_passport"]
+    for row in passport["capability_ladder"]:
+        lines.append(
+            f"{row['stage']}={row['status']} | "
+            f"basis_nodes={','.join(row.get('basis_spine_nodes') or [])}"
+        )
+    lines.append("observation_family_status:")
+    for family, family_status in sorted(passport["observation_family_status"].items()):
+        lines.append(f"- {family}={family_status}")
+    lines.append(
+        "scalar_quality_score_allowed="
+        + str(passport["scalar_quality_score_allowed"]).lower()
+    )
+    lines.append(
+        "capability_passport_creates_new_evidence="
+        + str(passport["capability_passport_creates_new_evidence"]).lower()
+    )
+    lines.extend(
+        [
+            "",
+            "cross_artifact_consistency:",
+        ]
+    )
     for row in diagnostic["cross_artifact_consistency"]:
         lines.append(
             f"- {row['check']}: {row['status']} | "
@@ -1354,12 +1631,15 @@ def main() -> int:
         head=args.head,
     )
     out_json, out_txt = write_outputs(root, diagnostic)
+    failure_memory_path, failure_memory = write_failure_memory_registry(root, diagnostic)
     print(
         json.dumps(
             {
                 "status": diagnostic["status"],
                 "out_json": str(out_json),
                 "out_txt": str(out_txt),
+                "failure_memory": str(failure_memory_path),
+                "failure_memory_record_count": failure_memory["record_count"],
                 "production_release": False,
             },
             ensure_ascii=False,

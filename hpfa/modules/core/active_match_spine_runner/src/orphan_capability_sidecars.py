@@ -18,6 +18,15 @@ from hpfa.modules.core.active_match_spine_runner.src.occurrence_state_transition
 from hpfa.modules.core.spatial_transition_candidate_lite.src import spatial_transition_candidate as spatial_transition
 from hpfa.modules.core.state_transition_dynamics_lite.src import state_transition_dynamics as state_transition
 from hpfa.modules.core.analyst_episode_locator_lite.src import process_participation_projection as process_participation
+from hpfa.modules.core.analyst_episode_locator_lite.src.process_actor_participation_concentration_projection import (
+    build_process_actor_participation_concentration_projection,
+)
+from hpfa.modules.core.cross_role_relation_candidate_resolver_lite.src.surface_dependency_topology import (
+    build_surface_dependency_topology,
+)
+from hpfa.modules.core.provider_label_value_semantics_lite.src.provider_semantic_utilization_audit import (
+    build_provider_semantic_utilization_audit,
+)
 from hpfa.modules.core.visible_action_sequence_candidates_lite.src.analyst_output_claim_contract_projection import (
     build_analyst_output_claim_contract,
 )
@@ -43,6 +52,12 @@ GRAMMAR_ALIGNMENT_OUTPUT = "supported_sequence_grammar_alignment_projection_v1.j
 PROCESS_VARIANT_BINDING_OUTPUT = "observable_process_variant_binding_projection_v1.json"
 GRAMMAR_STABLE_VARIANT_FEATURE_DELTA_OUTPUT = "grammar_stable_variant_feature_delta_projection_v1.json"
 ANALYST_OUTPUT_CLAIM_CONTRACT_OUTPUT = "analyst_output_claim_contract_projection_v1.json"
+CROSS_FORMAT_RECONCILIATION_OUTPUT = "cross_format_reconciliation_lite_v1.json"
+CROSS_ROLE_RELATION_OUTPUT = "cross_role_relation_candidate_resolver_lite_v1.json"
+SURFACE_DEPENDENCY_TOPOLOGY_OUTPUT = "surface_dependency_topology_v1.json"
+PROCESS_ACTOR_CONCENTRATION_OUTPUT = "process_actor_participation_concentration_projection_v1.json"
+PROVIDER_LABEL_SEMANTICS_OUTPUT = "provider_label_value_semantics_lite_v1.json"
+PROVIDER_SEMANTIC_UTILIZATION_OUTPUT = "provider_semantic_utilization_audit_v1.json"
 
 
 def _dedupe(values: list[str]) -> list[str]:
@@ -192,6 +207,92 @@ def run_sidecars(
     consequence_path = output / CONSEQUENCE_OUTPUT
     sequence_path = output / SEQUENCE_OUTPUT
     action_occurrence_path = output / ACTION_OCCURRENCE_OUTPUT
+    cross_format_reconciliation_path = output / CROSS_FORMAT_RECONCILIATION_OUTPUT
+    cross_role_relation_path = output / CROSS_ROLE_RELATION_OUTPUT
+    provider_label_semantics_path = output / PROVIDER_LABEL_SEMANTICS_OUTPUT
+
+    provider_semantic_utilization_prerequisite_present = provider_label_semantics_path.is_file()
+    if provider_semantic_utilization_prerequisite_present:
+        try:
+            provider_semantic_utilization_report = build_provider_semantic_utilization_audit(
+                _load_json(provider_label_semantics_path)
+            )
+            provider_semantic_utilization_path = _write_projection(
+                output / PROVIDER_SEMANTIC_UTILIZATION_OUTPUT,
+                provider_semantic_utilization_report,
+            )
+            artifacts.append(str(provider_semantic_utilization_path))
+            provider_semantic_utilization_status = provider_semantic_utilization_report.get("status")
+        except Exception as exc:
+            provider_semantic_utilization_report = {
+                "status": "REVIEW_REQUIRED",
+                "error_type": type(exc).__name__,
+                "csv_xml_combined_is_independent_evidence_count": False,
+                "cross_format_volume_must_not_be_interpreted_as_action_count": True,
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            }
+            provider_semantic_utilization_status = "REVIEW_REQUIRED"
+            review_hits.append(
+                f"provider_semantic_utilization_sidecar_failed:{type(exc).__name__}"
+            )
+    else:
+        provider_semantic_utilization_report = {
+            "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            "reason": "provider_label_value_semantics_output_missing",
+            "csv_xml_combined_is_independent_evidence_count": False,
+            "cross_format_volume_must_not_be_interpreted_as_action_count": True,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+        provider_semantic_utilization_status = provider_semantic_utilization_report["status"]
+
+    surface_dependency_topology_prerequisite_present = (
+        cross_format_reconciliation_path.is_file() and cross_role_relation_path.is_file()
+    )
+    if surface_dependency_topology_prerequisite_present:
+        try:
+            surface_dependency_topology_report = build_surface_dependency_topology(
+                _load_json(cross_format_reconciliation_path),
+                _load_json(cross_role_relation_path),
+            )
+            surface_dependency_topology_path = _write_projection(
+                output / SURFACE_DEPENDENCY_TOPOLOGY_OUTPUT,
+                surface_dependency_topology_report,
+            )
+            artifacts.append(str(surface_dependency_topology_path))
+            surface_dependency_topology_status = surface_dependency_topology_report.get("status")
+            if surface_dependency_topology_status == "FAIL_CLOSED":
+                review_hits.append("surface_dependency_topology_fail_closed_support_only")
+            elif surface_dependency_topology_status == "REVIEW_REQUIRED":
+                review_hits.append("surface_dependency_topology_review_required")
+        except Exception as exc:
+            surface_dependency_topology_report = {
+                "status": "REVIEW_REQUIRED",
+                "error_type": type(exc).__name__,
+                "independent_support_created": False,
+                "occurrence_identity_created": False,
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            }
+            surface_dependency_topology_status = "REVIEW_REQUIRED"
+            review_hits.append(
+                f"surface_dependency_topology_sidecar_failed:{type(exc).__name__}"
+            )
+    else:
+        surface_dependency_topology_report = {
+            "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            "reason": "cross_format_reconciliation_or_cross_role_relation_output_missing",
+            "independent_support_created": False,
+            "occurrence_identity_created": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+        surface_dependency_topology_status = surface_dependency_topology_report["status"]
 
     occurrence_projection_prerequisite_present = trace_path.is_file() and consequence_path.is_file()
     occurrence_censoring_boundary_prerequisite_present = episode_path.is_file()
@@ -367,6 +468,55 @@ def run_sidecars(
         }
         process_participation_status = process_participation_report["status"]
 
+    process_actor_concentration_prerequisite_present = (
+        process_participation_prerequisite_present
+        and process_participation_status != "FAIL_CLOSED"
+    )
+    if process_actor_concentration_prerequisite_present:
+        try:
+            process_actor_concentration_report = (
+                build_process_actor_participation_concentration_projection(
+                    process_participation_report
+                )
+            )
+            process_actor_concentration_path = _write_projection(
+                output / PROCESS_ACTOR_CONCENTRATION_OUTPUT,
+                process_actor_concentration_report,
+            )
+            artifacts.append(str(process_actor_concentration_path))
+            process_actor_concentration_status = process_actor_concentration_report.get("status")
+            if process_actor_concentration_status == "FAIL_CLOSED":
+                review_hits.append("process_actor_concentration_fail_closed_support_only")
+            elif process_actor_concentration_status == "REVIEW_REQUIRED":
+                review_hits.append("process_actor_concentration_review_required")
+        except Exception as exc:
+            process_actor_concentration_report = {
+                "status": "REVIEW_REQUIRED",
+                "error_type": type(exc).__name__,
+                "projection_creates_new_evidence": False,
+                "high_actor_concentration_is_player_indispensability_truth": False,
+                "dyad_coparticipation_is_pass_relation_truth": False,
+                "canonical_event_count": "UNKNOWN",
+                "true_action_count": "UNKNOWN",
+                "production_release": False,
+            }
+            process_actor_concentration_status = "REVIEW_REQUIRED"
+            review_hits.append(
+                f"process_actor_concentration_sidecar_failed:{type(exc).__name__}"
+            )
+    else:
+        process_actor_concentration_report = {
+            "status": "NOT_APPLICABLE_PREREQUISITE_MISSING",
+            "reason": "process_participation_projection_missing_or_fail_closed",
+            "projection_creates_new_evidence": False,
+            "high_actor_concentration_is_player_indispensability_truth": False,
+            "dyad_coparticipation_is_pass_relation_truth": False,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }
+        process_actor_concentration_status = process_actor_concentration_report["status"]
+
     sequence_intelligence_prerequisite_present = sequence_path.is_file()
     variant_feature_delta_prerequisite_present = False
     if sequence_intelligence_prerequisite_present:
@@ -532,6 +682,14 @@ def run_sidecars(
         "active_match_analyst_report_lite_status": baseline_status,
         "triplex_source_alignment_status": triplex_status,
         "triplex_source_alignment_prerequisite_present": mapping_present,
+        "provider_semantic_utilization_status": provider_semantic_utilization_status,
+        "provider_semantic_utilization_prerequisite_present": (
+            provider_semantic_utilization_prerequisite_present
+        ),
+        "surface_dependency_topology_status": surface_dependency_topology_status,
+        "surface_dependency_topology_prerequisite_present": (
+            surface_dependency_topology_prerequisite_present
+        ),
         "occurrence_consequence_projection_status": occurrence_projection_status,
         "occurrence_consequence_projection_prerequisite_present": occurrence_projection_prerequisite_present,
         "occurrence_consequence_censoring_boundary_prerequisite_present": occurrence_censoring_boundary_prerequisite_present,
@@ -544,6 +702,10 @@ def run_sidecars(
         "occurrence_state_transition_projection_prerequisite_present": occurrence_state_transition_prerequisite_present,
         "process_participation_projection_status": process_participation_status,
         "process_participation_projection_prerequisite_present": process_participation_prerequisite_present,
+        "process_actor_concentration_status": process_actor_concentration_status,
+        "process_actor_concentration_prerequisite_present": (
+            process_actor_concentration_prerequisite_present
+        ),
         "sequence_grammar_alignment_status": grammar_alignment_status,
         "sequence_grammar_alignment_prerequisite_present": sequence_intelligence_prerequisite_present,
         "observable_process_variant_binding_status": process_variant_binding_status,
@@ -555,11 +717,14 @@ def run_sidecars(
         "metric_governance_bridge_status": metric_governance_status,
         "active_match_analyst_report_lite": baseline,
         "triplex_source_alignment": triplex_report,
+        "provider_semantic_utilization": provider_semantic_utilization_report,
+        "surface_dependency_topology": surface_dependency_topology_report,
         "occurrence_consequence_projection": occurrence_projection_report,
         "spatial_transition_candidate": spatial_report,
         "state_transition_dynamics": state_transition_report,
         "occurrence_state_transition_projection": occurrence_state_transition_report,
         "process_participation_projection": process_participation_report,
+        "process_actor_concentration": process_actor_concentration_report,
         "sequence_grammar_alignment": grammar_alignment_report,
         "observable_process_variant_binding": process_variant_binding_report,
         "grammar_stable_variant_feature_delta": variant_feature_delta_report,

@@ -747,6 +747,50 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
                                 "NO_VISIBLE_FOLLOW_UP_CANDIDATE": 1,
                             }
                         },
+                        "visible_actor_location_participation_profile": {
+                            "actor_location_observable_process_n": 6,
+                            "eligible_location_temporal_layer_n": 9,
+                            "pass_only_temporal_layer_excluded_n": 21,
+                            "actor_process_presence_counts": {"actor_1": 4},
+                            "actor_anchor_observation_counts": {"actor_1": 6},
+                            "actor_location_actor_profiles": [{
+                                "actor_identity_candidate_id": "actor_1",
+                                "visible_process_presence_n": 4,
+                                "visible_process_presence_rate_among_location_observable_processes": 4 / 6,
+                                "anchor_observation_n": 6,
+                                "visible_process_spread_is_recurrence_truth": False,
+                                "visible_process_spread_is_independent_support": False,
+                                "visible_process_spread_is_stable_role_truth": False,
+                                "visible_process_spread_is_player_importance_truth": False,
+                            }],
+                            "actor_location_actor_consequence_context_profiles": [{
+                                "actor_identity_candidate_id": "actor_1",
+                                "actor_location_observable_process_n": 4,
+                                "shot_ending_actor_location_process_n": 1,
+                                "non_shot_actor_location_process_n": 3,
+                                "consequence_process_presence_counts": {
+                                    "OPPONENT_HANDOVER_CANDIDATE": 2,
+                                    "SAME_TEAM_CONTINUATION_CANDIDATE": 1,
+                                },
+                                "actor_context_challenge_contract": {
+                                    "observed_variation_state": "MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT",
+                                    "challenge_type_candidate": "UNDERCUT_CANDIDATE",
+                                    "target_claim_component_bound": False,
+                                    "typed_defeat_admitted": False,
+                                    "counterevidence_target_binding_state": "UNRESOLVED_NO_EXPLICIT_TARGET_CLAIM_COMPONENT",
+                                    "withdrawal_condition_candidates": [
+                                        "QUALIFY_OR_WITHDRAW_IF_PLAYER_NARRATIVE_REQUIRES_UNIFORM_VISIBLE_OUTCOME"
+                                    ],
+                                },
+                                "actor_caused_consequence_truth": False,
+                                "actor_induced_opponent_response_truth": False,
+                                "actor_consequence_context_is_causal_contribution_truth": False,
+                            }],
+                            "provider_zone_layer_counts": {"FINAL_THIRD": 5, "MIDDLE_THIRD": 4},
+                            "coordinate_is_average_position_truth": False,
+                            "coordinate_is_tracking_truth": False,
+                            "pass_coordinate_used_as_actor_location": False,
+                        },
                     }
                 ]
             }
@@ -755,7 +799,13 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     identity = {
         "team_identity_candidates": [
             {"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"},
-        ]
+        ],
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_aliases_raw": ["Player One"],
+            "validated_player_identity": True,
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+        }],
     }
     cards = user_output_bundle._human_team_process_cards(rich, identity, "tr")
     text = "\n".join(cards)
@@ -768,7 +818,120 @@ def test_team_process_cards_expose_visible_consequence_response_without_inflatin
     assert "Okuma çerçevesi" in text
     assert "follow-up durumlarının" in text
     assert "same-time review" in text
+    assert "6 süreçte actor-location gözlemi" in text
+    assert "9 admitted actor-location katmanı" in text
+    assert "21 PASS-only katman konum hesabından dışlandı" in text
+    assert "Player One 4 görünür süreçte actor-location katılımı verdi" in text
+    assert "6 anchor gözlemi" in text
+    assert "Bu actor-location bağlamındaki süreçlerin 2 tanesinde rakibe geçiş" in text
+    assert "1 tanesinde aynı takım devamı görüldü" in text
+    assert "claim kapsamı maç-içi görünür bağlamla sınırlıdır" in text
+    assert "nedensel oyuncu katkısı için ek kanıt gerekir" in text
+    assert "Aynı oyuncu bağlamında hem devam hem rakip cevabı görünür" in text
+    assert "tek yönlü sonuç anlatısı qualify edilmeli" in text
+    assert "kalıcı rol" not in text.lower()
+    assert "ortalama pozisyon" not in text.lower()
+    assert "tracking konumu" not in text.lower()
 
+
+def test_team_process_cards_do_not_infer_variation_challenge_from_counts_without_contract() -> None:
+    rich = {"constructs": {"C03": {"team_process_profiles": [{
+        "team_identity_candidate_id": "team_a",
+        "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+        "eligible_process_n": 3,
+        "shot_ending_process_n": 0,
+        "visible_loss_process_n": 0,
+        "visible_recovery_process_n": 0,
+        "visible_consequence_response_profile": {"process_presence_counts": {}},
+        "visible_actor_location_participation_profile": {
+            "actor_location_observable_process_n": 2,
+            "eligible_location_temporal_layer_n": 2,
+            "pass_only_temporal_layer_excluded_n": 0,
+            "actor_location_actor_profiles": [{
+                "actor_identity_candidate_id": "actor_1",
+                "visible_process_presence_n": 2,
+                "anchor_observation_n": 2,
+            }],
+            "actor_location_actor_consequence_context_profiles": [{
+                "actor_identity_candidate_id": "actor_1",
+                "shot_ending_actor_location_process_n": 0,
+                "non_shot_actor_location_process_n": 2,
+                "consequence_process_presence_counts": {
+                    "OPPONENT_HANDOVER_CANDIDATE": 1,
+                    "SAME_TEAM_CONTINUATION_CANDIDATE": 1,
+                },
+                "actor_context_challenge_contract": {
+                    "observed_variation_state": "NO_MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT",
+                    "challenge_type_candidate": "NOT_APPLICABLE",
+                    "target_claim_component_bound": False,
+                    "typed_defeat_admitted": False,
+                    "withdrawal_condition_candidates": [],
+                },
+            }],
+        },
+    }]}}}
+    identity = {
+        "team_identity_candidates": [{"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"}],
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_aliases_raw": ["Player One"],
+            "validated_player_identity": True,
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+        }],
+    }
+    text = "\n".join(user_output_bundle._human_team_process_cards(rich, identity, "tr"))
+    assert "1 tanesinde rakibe geçiş" in text
+    assert "1 tanesinde aynı takım devamı görüldü" in text
+    assert "tek yönlü sonuç anlatısı qualify edilmeli" not in text
+
+
+def test_team_process_cards_accumulate_actor_consequence_context_across_process_families() -> None:
+    rich = {"constructs": {"C03": {"team_process_profiles": []}}}
+    for family, handover, continuation in [
+        ("COUNTERATTACK_CANDIDATE", 2, 1),
+        ("POSITIONAL_ATTACK_CANDIDATE", 3, 4),
+    ]:
+        rich["constructs"]["C03"]["team_process_profiles"].append({
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": family,
+            "eligible_process_n": 5,
+            "shot_ending_process_n": 0,
+            "visible_loss_process_n": 0,
+            "visible_recovery_process_n": 0,
+            "visible_consequence_response_profile": {"process_presence_counts": {}},
+            "visible_actor_location_participation_profile": {
+                "actor_location_observable_process_n": 3,
+                "eligible_location_temporal_layer_n": 3,
+                "pass_only_temporal_layer_excluded_n": 0,
+                "actor_location_actor_profiles": [{
+                    "actor_identity_candidate_id": "actor_1",
+                    "visible_process_presence_n": 3,
+                    "anchor_observation_n": 3,
+                }],
+                "actor_location_actor_consequence_context_profiles": [{
+                    "actor_identity_candidate_id": "actor_1",
+                    "shot_ending_actor_location_process_n": 0,
+                    "non_shot_actor_location_process_n": 3,
+                    "consequence_process_presence_counts": {
+                        "OPPONENT_HANDOVER_CANDIDATE": handover,
+                        "SAME_TEAM_CONTINUATION_CANDIDATE": continuation,
+                    },
+                }],
+            },
+        })
+    identity = {
+        "team_identity_candidates": [{"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha"}],
+        "actor_identity_candidates": [{
+            "actor_identity_candidate_id": "actor_1",
+            "actor_aliases_raw": ["Player One"],
+            "validated_player_identity": True,
+            "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+        }],
+    }
+    text = "\n".join(user_output_bundle._human_team_process_cards(rich, identity, "tr"))
+    assert "6 görünür süreçte actor-location katılımı verdi" in text
+    assert "5 tanesinde rakibe geçiş" in text
+    assert "5 tanesinde aynı takım devamı görüldü" in text
 
 
 def _write_current_inventory(path: Path) -> None:
@@ -2495,6 +2658,31 @@ def test_player_function_cards_surface_match_local_function_context_without_qual
     rich = {
         "player_score_state_process_participation": {
             "status": "PASS",
+            "function_hypothesis_review_candidates": [
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "observed_score_state_context_n": 2,
+                    "observed_process_family_n": 2,
+                    "process_mix_varies_across_observed_score_states": True,
+                    "review_state": "MATCH_LOCAL_FUNCTION_CONTEXT_VARIATION_REVIEW_CANDIDATE",
+                    "creates_new_evidence": False,
+                    "can_authorize_player_value_claim": False,
+                    "stable_role_truth": False,
+                    "causal_contribution_truth": False,
+                    "off_ball_role_truth": False,
+                    "counter_scenario_candidates": [
+                        "PLAYER_EXPOSURE_DIFFERS_ACROSS_SCORE_STATES_AND_IS_NOT_ADMITTED_HERE",
+                        "TEAM_PROCESS_OPPORTUNITY_MIX_MAY_DIFFER_ACROSS_SCORE_STATES",
+                    ],
+                    "hypothesis_falsifier_conditions": ["ELIGIBLE_CONTEXT_REVIEW_SHOWS_COMPARABLE_VISIBLE_PROCESS_MIX_ACROSS_SCORE_STATES"],
+                    "invalidation_conditions": ["SCORE_STATE_BINDING_INVALIDATED"],
+                    "falsifier_is_invalidator": False,
+                    "absence_is_falsifier": False,
+                    "withdrawal_conditions": ["FEWER_THAN_TWO_ADMITTED_SCORE_STATE_CONTEXTS_REMAIN"],
+                    "analyst_action": "Compare visible process-family participation across score-state contexts before stronger interpretation.",
+                    "claim_ceiling": "MATCH_LOCAL_CONTEXT_CONDITIONED_PLAYER_FUNCTION_REVIEW_CANDIDATE_ONLY",
+                }
+            ],
             "profiles": [
                 {
                     "actor_identity_candidate_id": "a1",
@@ -2618,8 +2806,13 @@ def test_player_function_cards_surface_match_local_function_context_without_qual
     assert "taktik rol gerçeği" not in joined_tr.lower()
     assert "nedensel katkı" in joined_tr.lower()
     assert "per-90" in joined_tr
+    assert "İşlev inceleme adayı:" in joined_tr
+    assert "2 admitted skor bağlamında 2 görünür süreç ailesi" in joined_tr
+    assert "kalıcı rol" in joined_tr
+    assert "ayrı gözlem gerekir" in joined_tr
 
     assert "Player One" in joined_en
+    assert "Function review candidate:" in joined_en
     assert "positional attack 12" in joined_en
     assert "match-local function context" in joined_en.lower()
 
@@ -3456,6 +3649,47 @@ def test_standard_human_reports_forward_question_to_attention_selector(tmp_path,
     assert captured == [question, question]
 
 
+
+
+
+def test_process_family_aliases_collapse_to_one_canonical_key() -> None:
+    assert user_output_bundle._football_family_key("POSITIONAL_ATTACK_CANDIDATE") == "POSITIONAL_ATTACK"
+    assert user_output_bundle._football_family_key("positional attacks") == "POSITIONAL_ATTACK"
+    assert user_output_bundle._football_family_key("counterattacks") == "COUNTERATTACK"
+    assert user_output_bundle._football_family_key("set piece attacks") == "SET_PIECE_ATTACK"
+
+def test_turkish_family_label_normalizes_provider_plural_aliases() -> None:
+    assert user_output_bundle._football_family_label("positional attacks", "tr") == "yerleşik hücum"
+    assert user_output_bundle._football_family_label("counterattacks", "tr") == "kontra atak"
+    assert user_output_bundle._football_family_label("set piece attacks", "tr") == "duran top hücumu"
+
+def test_short_professional_report_uses_source_bound_mechanism_story_highlights(tmp_path, monkeypatch):
+    spine = _full_spine(current_artifacts=[])
+
+    monkeypatch.setattr(
+        user_output_bundle,
+        "_human_mechanism_cards",
+        lambda *a, **k: [
+            "MEKANİZMA KARTI 1 | SINIF=ANA MEKANİZMA ADAYI | ...",
+            "İnceleme noktası 1: Alpha, ilk yarı. pas arası → pas bağlantısı iki ayrı bölümde tekrar görülüyor. Karşılaştırılabilir varyantlar farklı görünür sonuçlara gidiyor.",
+            "Kanıt notu: bağımsızlık kanıtlanmadı.",
+        ],
+    )
+    monkeypatch.setattr(
+        user_output_bundle,
+        "_human_match_story_mechanism_highlights",
+        lambda cards, language, limit=4: [
+            "İnceleme noktası 1: Alpha, ilk yarı. pas arası → pas bağlantısı iki ayrı bölümde tekrar görülüyor. Karşılaştırılabilir varyantlar farklı görünür sonuçlara gidiyor."
+        ],
+    )
+
+    report = user_output_bundle.build_hp_football_report_tr(tmp_path, spine)
+
+    assert "TEKRAR EDEN YOLLAR VE VARYANTLAR" in report
+    assert "İnceleme noktası 1: Alpha" in report
+    assert "MEKANİZMA KARTI 1" not in report
+    assert "Kanıt notu:" not in report
+
 def test_standard_user_outputs_forwards_question_to_human_reports(tmp_path, monkeypatch):
     spine = _full_spine(current_artifacts=[])
     question = {
@@ -3499,3 +3733,533 @@ def test_standard_user_outputs_forwards_question_to_human_reports(tmp_path, monk
 
     assert captured["tr"] == question
     assert captured["en"] == question
+
+def test_visible_process_route_breadth_reaches_professional_report_without_tactical_overclaim(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    identity_path.write_text(
+        json.dumps({
+            "team_identity_candidates": [
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "team_normalized_key": "alpha",
+                    "team_aliases_raw": ["Alpha"],
+                }
+            ]
+        }),
+        encoding="utf-8",
+    )
+    rich = {
+        "status": "PASS",
+        "visible_process_route_breadth_profile": {
+            "status": "PASS",
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_ROUTE_BREADTH_PROFILE_CANDIDATE_ONLY",
+            "profiles": [
+                {
+                    "team_identity_candidate_id": "team_a",
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "eligible_process_n": 8,
+                    "eligible_unambiguous_route_process_n": 6,
+                    "ambiguous_or_unresolved_route_process_n": 2,
+                    "visible_route_candidate_counts": {
+                        "DEFENSIVE_THIRD->MIDDLE_THIRD": 2,
+                        "MIDDLE_THIRD->FINAL_THIRD": 3,
+                        "FINAL_THIRD->BOX": 1,
+                    },
+                    "unique_visible_route_candidate_n": 3,
+                    "recurring_visible_route_candidate_n": 2,
+                    "singleton_visible_route_candidate_n": 1,
+                    "top_visible_route_candidate": "MIDDLE_THIRD->FINAL_THIRD",
+                    "top_visible_route_process_n": 3,
+                    "route_coverage_share_candidate": 0.75,
+                    "route_is_physical_trajectory_truth": False,
+                    "route_is_line_break_truth": False,
+                    "route_breadth_is_tactical_flexibility_truth": False,
+                    "route_breadth_is_unpredictability_truth": False,
+                    "route_breadth_is_superiority_truth": False,
+                    "coach_intention_truth": False,
+                }
+            ],
+        },
+    }
+    spine = _full_spine(current_artifacts=[str(identity_path)])
+    spine["rich_multiformat_analysis_lattice"] = rich
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+
+    text = user_output_bundle.build_hp_football_report_tr(tmp_path, spine)
+
+    assert "GÖRÜNÜR SÜREÇ ROTALARI" in text
+    assert "Alpha — yerleşik hücum" in text
+    assert "6/8 süreçte tekil başlangıç→bitiş rotası" in text
+    assert "3 farklı rota adayı" in text
+    assert "MIDDLE THIRD→FINAL THIRD 3" in text
+    assert "fiziksel rota" not in text.casefold()
+    assert "taktik esneklik" not in text.casefold()
+    assert "üstünlük" not in text.casefold()
+
+def test_residual_rich_specialist_surfaces_reach_human_cards_without_overclaim():
+    rich = {
+        "m01_possession_construction_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "eligible_process_signature_n": 12,
+                "visible_circulation_process_n": 8,
+                "goalkeeper_restart_context_n": 3,
+                "visible_circulation_fate_counts": {"LOSS_LINKED_VISIBLE": 4},
+                "possession_truth": False,
+                "possession_control_truth": False,
+                "tactical_plan_truth": False,
+            }],
+        },
+        "m02_progression_territory_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "eligible_process_signature_n": 12,
+                "provider_attack_axis_delta_admitted_process_n": 5,
+                "visible_end_zone_candidate_counts": {"FINAL_THIRD": 2, "PENALTY_AREA": 1},
+                "unresolved_start_zone_process_n": 7,
+                "unresolved_end_zone_process_n": 9,
+                "territory_is_possession_control_truth": False,
+                "provider_axis_delta_is_physical_distance_truth": False,
+            }],
+        },
+        "r01_ball_progression_system_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "coverage_state": "M01_AND_M02_VISIBLE",
+                "scalar_ball_progression_score_emitted": False,
+                "component_views_create_independent_support": False,
+            }],
+        },
+        "m06_transition_dynamics_synthesis": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "counterattack_context_n": 6,
+                "counter_to_positional_successor_candidate_n": 4,
+                "counterattack_successor_latency_observed_n": 5,
+                "counterattack_successor_latency_min_candidate": 4.0,
+                "counterattack_successor_latency_max_candidate": 31.0,
+                "transition_phase_truth": False,
+                "momentum_truth": False,
+                "tactical_adaptation_truth": False,
+            }],
+        },
+        "m07_defensive_process_visible_exposure_response_synthesis": {
+            "status": "REVIEW_REQUIRED",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "opponent_team_identity_candidate_id": "team_b",
+                "opponent_visible_process_n": 10,
+                "opponent_shot_ending_process_n": 2,
+                "opponent_visible_loss_process_n": 4,
+                "taxonomy_coverage_state": "PARTIAL_VISIBLE_EXPOSURE_RESPONSE_ONLY",
+                "organized_defence_shape_truth": False,
+                "pressure_geometry_truth": False,
+                "defensive_success_truth": False,
+            }],
+        },
+        "visible_intervention_response_profile": {
+            "status": "PASS",
+            "row_count": 2,
+            "rows": [
+                {
+                    "attacking_team_identity_candidate_id": "team_a",
+                    "intervention_team_identity_candidate_id": "team_b",
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "intervention_action_family_candidates": ["INTERCEPTION"],
+                    "seconds_to_first_visible_intervention_candidate": 3.0,
+                    "provider_coordinate_displacement_candidate": 5.0,
+                    "intervention_followup_primary_consequence_candidate": "SAME_TEAM_CONTINUATION_CANDIDATE",
+                },
+                {
+                    "attacking_team_identity_candidate_id": "team_a",
+                    "intervention_team_identity_candidate_id": "team_b",
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "intervention_action_family_candidates": ["TACKLE"],
+                    "seconds_to_first_visible_intervention_candidate": 6.0,
+                    "provider_coordinate_displacement_candidate": 8.0,
+                    "intervention_followup_primary_consequence_candidate": "OPPONENT_HANDOVER_CANDIDATE",
+                },
+            ],
+            "provider_coordinate_displacement_is_physical_distance": False,
+            "visible_intervention_is_pressure_intensity_truth": False,
+            "visible_intervention_is_closing_speed_truth": False,
+            "visible_intervention_is_forced_error_truth": False,
+            "visible_intervention_is_defensive_success_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_INTERVENTION_RESPONSE_CONTEXT_ONLY",
+        },
+        "goalkeeper_restart_consequence_context": {
+            "status": "PASS",
+            "rows": [{
+                "team_identity_candidate_id": "team_a",
+                "provider_distance_bucket_candidate": "LONG",
+                "pass_outcome_candidate": "SUCCESS",
+                "primary_consequence_candidates": ["SAME_TEAM_CONTINUATION_CANDIDATE"],
+                "next_visible_process_family_candidates": ["POSITIONAL_ATTACK_CANDIDATE"],
+                "record_status": "PASS",
+            }],
+        },
+        "counterattack_next_process_context": {
+            "status": "PASS",
+            "counterattack_context_row_count": 6,
+            "counter_to_positional_successor_candidate_count": 4,
+            "next_visible_process_family_counts": {"POSITIONAL_ATTACK_CANDIDATE": 4},
+            "rows": [],
+        },
+        "game_state_process_mix_context": {
+            "status": "PASS",
+            "profiles": [{
+                "team_identity_candidate_id": "team_a",
+                "score_state_candidate": {"Alpha": 0, "Beta": 0},
+                "segment_duration_second_candidate": 600.0,
+                "process_family_counts": {"POSITIONAL_ATTACK_CANDIDATE": 5, "COUNTERATTACK_CANDIDATE": 1},
+                "process_family_rate_per_10_minutes": {"POSITIONAL_ATTACK_CANDIDATE": 5.0, "COUNTERATTACK_CANDIDATE": 1.0},
+                "rate_denominator_is_score_state_exposure_time": True,
+                "score_state_is_causal_explanation": False,
+            }],
+        },
+    }
+    identity = {
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
+            {"team_identity_candidate_id": "team_b", "team_aliases_raw": ["Beta"]},
+        ]
+    }
+
+    cards = user_output_bundle._human_residual_specialist_cards(rich, identity, "tr")
+    joined = " ".join(cards)
+
+    assert "Kurulum/ilerleme bağlamı" in joined
+    assert "Geçiş-devam bağlamı" in joined
+    assert "Savunma maruziyeti/yanıt bağlamı" in joined
+    assert "Görünür müdahale-yanıt bağlamı" in joined
+    assert "3.0–6.0 sn" in joined
+    assert "5.0–8.0 kaynak-koordinat birimi" in joined
+    assert "Kaleci yeniden başlatma bağlamı" in joined
+    assert "Skor-durumu süreç karışımı" in joined
+    assert "fiziksel mesafe üstünlüğü" not in joined.casefold()
+    assert "taktik üstünlük sağladı" not in joined.casefold()
+    assert "baskı geometrisi kanıtı" not in joined.casefold()
+    assert "pres yoğunluğu" not in joined.casefold()
+    assert "kapanma hızı" not in joined.casefold()
+    assert "zorlanmış hata" not in joined.casefold()
+    cleaned = user_output_bundle._hp_take_clean(cards, limit=10)
+    cleaned_joined = " ".join(cleaned)
+    assert "Kurulum/ilerleme bağlamı" in cleaned_joined
+    assert "müdahale-yanıt bağlamı" in cleaned_joined
+    assert "kaynak-koordinat birimi" in cleaned_joined
+    assert "Kaleci yeniden başlatma bağlamı" in cleaned_joined
+
+
+def test_fusion_relation_summary_surfaces_dependency_and_counterevidence_without_inflation():
+    full = {
+        "intelligence_chains": [
+            {"fusion": {
+                "fusion_status": "SUPPORTED",
+                "relation_counts": {"SUPPORTS": 2, "CONTEXTUALIZES": 1, "QUALIFIES": 1},
+                "admitted_counterevidence_count": 1,
+                "unresolved_counterevidence_count": 2,
+                "independent_support_count": 0,
+                "correlated_or_unknown_support_count": 3,
+                "dependency_challenge_count": 2,
+                "claim_ceiling": "fusion_relation_candidate_only",
+                "nominal_ref_count_is_independent_support_count": False,
+            }},
+            {"fusion": {
+                "fusion_status": "SUPPORTED",
+                "relation_counts": {"SUPPORTS": 1, "COMPLEMENTS": 2},
+                "admitted_counterevidence_count": 0,
+                "unresolved_counterevidence_count": 1,
+                "independent_support_count": 0,
+                "correlated_or_unknown_support_count": 2,
+                "dependency_challenge_count": 1,
+                "claim_ceiling": "fusion_relation_candidate_only",
+                "nominal_ref_count_is_independent_support_count": False,
+            }},
+        ]
+    }
+    cards = user_output_bundle._human_fusion_relation_cards(full, "tr")
+    joined = " ".join(cards)
+    assert "Kanıt ilişki özeti" in joined
+    assert "SUPPORTS 3" in joined
+    assert "CONTEXTUALIZES 1" in joined
+    assert "doğrulanmış karşı-örnek 1" in joined
+    assert "bağımlılık inceleme kaydı 3" in joined
+    assert "bağımsız destek 0" in joined
+    assert "Ham referans sayısı bağımsız destek sayılmaz" in joined
+    cleaned = user_output_bundle._hp_take_clean(cards, limit=2)
+    assert cleaned and "Kanıt ilişki özeti" in cleaned[0]
+
+def test_short_professional_report_surfaces_context_conditioned_player_function_review(tmp_path):
+    identity_path = tmp_path / "match_local_identity_candidates_lite_v1.json"
+    identity_path.write_text(
+        json.dumps({
+            "team_identity_candidates": [
+                {"team_identity_candidate_id": "team_a", "team_normalized_key": "alpha", "team_aliases_raw": ["Alpha"]},
+            ],
+            "actor_identity_candidates": [
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "actor_aliases_raw": ["1. Player One (101)"],
+                    "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                    "validated_player_identity": True,
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+    rich = {
+        "status": "PASS",
+        "constructs": {"C03": {"team_process_profiles": []}},
+        "player_score_state_process_participation": {
+            "status": "PASS",
+            "profiles": [
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "actor_label_candidate": "Player One",
+                    "team_identity_candidate_id": "team_a",
+                    "visible_process_participation_n": 5,
+                    "shot_ending_process_participation_n": 1,
+                    "process_family_counts": {"POSITIONAL_ATTACK_CANDIDATE": 4, "COUNTERATTACK_CANDIDATE": 1},
+                }
+            ],
+            "function_hypothesis_review_candidates": [
+                {
+                    "actor_identity_candidate_id": "a1",
+                    "observed_score_state_context_n": 3,
+                    "observed_process_family_n": 2,
+                    "process_mix_varies_across_observed_score_states": True,
+                    "review_state": "MATCH_LOCAL_FUNCTION_CONTEXT_VARIATION_REVIEW_CANDIDATE",
+                    "creates_new_evidence": False,
+                    "can_authorize_player_value_claim": False,
+                    "stable_role_truth": False,
+                    "causal_contribution_truth": False,
+                    "off_ball_role_truth": False,
+                }
+            ],
+        },
+    }
+    spine = _full_spine(current_artifacts=[str(identity_path)])
+    spine["rich_multiformat_analysis_lattice"] = rich
+    spine["engineering_evidence"]["rich_multiformat_lane_executed"] = True
+
+    text = user_output_bundle.build_hp_football_report_tr(tmp_path, spine)
+
+    review_line = next(line for line in text.splitlines() if "İşlev inceleme adayı —" in line)
+    assert "Player One" in review_line
+    assert "3 skor bağlamında 2 süreç ailesi" in review_line
+    assert "kalıcı rol" not in review_line.casefold()
+    assert "oyuncu değeri" not in review_line.casefold()
+
+def test_process_actor_concentration_reaches_player_function_review_without_relation_inference(tmp_path):
+    identity = {
+        "actor_identity_candidates": [
+            {"actor_identity_candidate_id": "a1", "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True, "actor_aliases_raw": ["10. Player One"]},
+            {"actor_identity_candidate_id": "a2", "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True, "actor_aliases_raw": ["19. Player Two"]},
+        ],
+        "team_identity_candidates": [
+            {"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]},
+        ],
+    }
+    payload = {
+        "status": "REVIEW_REQUIRED",
+        "process_actor_concentration_profiles": [{
+            "team_identity_candidate_id": "team_a",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "actor_observable_process_count": 10,
+            "actor_observation_coverage_numerator": 10,
+            "actor_observation_coverage_denominator": 12,
+            "actor_process_counts": {"a1": 8, "a2": 5},
+            "dyad_process_counts": {"a1|a2": 4},
+            "action_weighted_concentration_produced": False,
+            "dependency_independence_proven": False,
+            "high_actor_concentration_is_player_indispensability_truth": False,
+            "low_actor_concentration_is_tactical_flexibility_truth": False,
+            "dyad_is_pass_relation_truth": False,
+            "claim_ceiling": "OBSERVED_PROCESS_ACTOR_AND_COPARTICIPATION_CONCENTRATION_WITHIN_DEFINED_PROVIDER_ANNOTATION_UNIVERSE",
+        }],
+    }
+    path = tmp_path / "process_actor_participation_concentration_projection_v1.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    full = {"current_invocation_artifacts": [str(path)]}
+
+    cards = user_output_bundle._human_process_actor_concentration_cards(tmp_path, full, identity, "tr")
+    joined = " ".join(cards)
+
+    assert "Oyuncu süreç yoğunlaşması" in joined
+    assert "Player One 8/10" in joined
+    assert "Player One + Player Two 4" in joined
+    assert "pas ilişkisi" in joined
+    assert "ayrı gözlem gerekir" in joined
+    assert "aynı process instance içindeki gözlenebilir eş-katılımdır" in joined
+    compressed = " ".join(user_output_bundle._hp_take_clean(cards, limit=6))
+    assert "Player One + Player Two 4" in compressed
+    assert "aynı process instance içindeki gözlenebilir eş-katılımdır" in compressed
+    assert "vazgeçilmez oyuncu" not in joined.casefold()
+    assert "taktik esneklik kanıtı" not in joined.casefold()
+
+def test_short_report_cleaner_does_not_treat_player_as_layer_token():
+    player_line = "Player One 8/10 süreçte yer aldı; kapsam aynı process instance içindeki gözlenebilir eş-katılımdır."
+    technical_layer_line = "Layer status current."
+    assert user_output_bundle._hp_clean_football_line(player_line) is not None
+    assert user_output_bundle._hp_clean_football_line(technical_layer_line) is None
+
+
+
+def test_dual_view_process_participant_cards_reach_human_output_without_role_overclaim(tmp_path):
+    sequence_path = tmp_path / "visible_action_sequence_candidates_lite_v1.json"
+    sequence_path.write_text(
+        json.dumps({
+            "partial_order_occurrence_variants": [
+                {
+                    "partial_order_occurrence_variant_id": "v1",
+                    "team_identity_candidate_id": "team_a",
+                    "comparison_process_context_families": ["POSITIONAL_ATTACK_CANDIDATE"],
+                    "occurrence_actor_refs": ["actor_a"],
+                    "provider_participant_actor_refs": ["actor_a", "actor_b"],
+                    "shared_actor_refs": ["actor_a"],
+                    "provider_only_actor_refs": ["actor_b"],
+                    "occurrence_only_actor_refs": [],
+                    "participant_view_relation_state": "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION",
+                    "provider_only_participant_is_error_truth": False,
+                    "participant_view_creates_off_ball_truth": False,
+                    "participant_view_creates_tactical_role_truth": False,
+                    "participant_view_creates_independent_support": False,
+                }
+            ],
+            "dual_view_process_participant_binding_consumed": True,
+            "canonical_event_count": "UNKNOWN",
+            "true_action_count": "UNKNOWN",
+            "production_release": False,
+        }),
+        encoding="utf-8",
+    )
+    identity = {
+        "team_identity_candidates": [{
+            "team_identity_candidate_id": "team_a",
+            "team_normalized_key": "alpha",
+            "team_aliases_raw": ["Alpha"],
+        }],
+        "actor_identity_candidates": [
+            {"actor_identity_candidate_id": "actor_a", "actor_aliases_raw": ["Player A"], "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True},
+            {"actor_identity_candidate_id": "actor_b", "actor_aliases_raw": ["Player B"], "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True},
+        ],
+    }
+    spine = _full_spine(current_artifacts=[str(sequence_path)])
+
+    cards = user_output_bundle._human_dual_view_process_participant_cards(
+        tmp_path, spine, identity, "tr"
+    )
+
+    rendered = "\n".join(cards)
+    assert "Alpha" in rendered
+    assert "yerleşik hücum" in rendered
+    assert "Player A" in rendered
+    assert "Player B" in rendered
+    assert "aksiyon görünümü" in rendered.casefold()
+    assert "süreç katılım" in rendered.casefold()
+    assert "off-ball" not in rendered.casefold()
+    assert "taktik rol" not in rendered.casefold()
+    assert "katkı sağladı" not in rendered.casefold()
+    assert "katkısı" not in rendered.casefold()
+    assert "taktik rolü" not in rendered.casefold()
+
+
+def test_dual_view_turkish_card_survives_professional_cleaner_as_complete_football_sentence(tmp_path):
+    sequence_path = tmp_path / "visible_action_sequence_candidates_lite_v1.json"
+    sequence_path.write_text(json.dumps({
+        "dual_view_process_participant_binding_consumed": True,
+        "partial_order_occurrence_variants": [{
+            "partial_order_occurrence_variant_id": "v1",
+            "team_identity_candidate_id": "team_a",
+            "comparison_process_context_families": ["POSITIONAL_ATTACK_CANDIDATE"],
+            "occurrence_actor_refs": ["actor_a"],
+            "provider_participant_actor_refs": ["actor_a", "actor_b"],
+            "participant_view_relation_state": "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION",
+        }],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }), encoding="utf-8")
+    identity = {
+        "team_identity_candidates": [{"team_identity_candidate_id": "team_a", "team_aliases_raw": ["Alpha"]}],
+        "actor_identity_candidates": [
+            {"actor_identity_candidate_id": "actor_a", "actor_aliases_raw": ["Player A"], "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True},
+            {"actor_identity_candidate_id": "actor_b", "actor_aliases_raw": ["Player B"], "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND", "validated_player_identity": True},
+        ],
+    }
+    spine = _full_spine(current_artifacts=[str(sequence_path)])
+    raw = user_output_bundle._human_dual_view_process_participant_cards(tmp_path, spine, identity, "tr")
+    cleaned = user_output_bundle._hp_take_clean(raw, limit=2)
+    assert len(cleaned) == 1
+    assert "Alpha — yerleşik hücum" in cleaned[0]
+    assert "Player A" in cleaned[0]
+    assert "Player B" in cleaned[0]
+    assert "aksiyon görünümü" in cleaned[0]
+    assert "süreç katılım" in cleaned[0]
+    assert "nedensel katkı sayılmaz" in cleaned[0]
+    assert "provider" not in cleaned[0].casefold()
+    assert "occurrence" not in cleaned[0].casefold()
+
+
+def test_c02_dyad_card_exposes_search_space_and_episode_reuse_without_partnership_upgrade():
+    rich = {
+        "constructs": {
+            "C02": {
+                "selection_scope_actor_candidate_count": 9,
+                "selection_scope_dyad_candidate_count": 14,
+                "candidate_generation_state": "POSTHOC_EXHAUSTIVE_MATCH_LOCAL_ACTOR_DYAD_GRID",
+                "selection_bias_state": "POSTHOC_ATTENTION_SELECTION_REVIEW_REQUIRED",
+                "representative_actor_argument": None,
+                "representative_dyad_argument": {
+                    "actor_identity_candidate_ids": ["a1", "a2"],
+                    "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+                    "eligible_n": 5,
+                    "visible_target_annotation_k": 2,
+                    "target_outcome_unresolved_u": 3,
+                    "eligible_episode_spread": 4,
+                    "positive_episode_spread": 2,
+                    "observed_visible_target_annotation_frequency": 0.4,
+                    "match_local_baseline_shot_frequency": 0.25,
+                    "descriptive_lift": 1.6,
+                    "target_process_ref_overlap_count_with_other_dyads": 1,
+                    "unique_to_this_dyad_target_process_ref_count": 1,
+                    "target_episode_ref_overlap_count_with_other_dyads": 1,
+                    "overlapping_dyad_candidate_count": 3,
+                    "repeated_episode_burden_state": "SHARED_TARGET_EPISODE_REUSE_PRESENT",
+                },
+            }
+        }
+    }
+    identity = {
+        "actor_identity_candidates": [
+            {
+                "actor_identity_candidate_id": "a1",
+                "actor_aliases_raw": ["7. Player One"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
+                "supporting_evidence_atom_ids": ["ea1"],
+            },
+            {
+                "actor_identity_candidate_id": "a2",
+                "actor_aliases_raw": ["11. Player Two"],
+                "decision_state": "ACTOR_IDENTITY_CANDIDATE_BOUND",
+                "validated_player_identity": True,
+                "supporting_evidence_atom_ids": ["ea2"],
+            },
+        ]
+    }
+
+    cards = user_output_bundle._human_c02_cards(rich, identity, "tr")
+    joined = " ".join(cards)
+
+    assert "14 ikili aday" in joined
+    assert "1 target örneği başka ikililerle aynı episode'u paylaşıyor" in joined
+    assert "1 target örneği bu ikiliye özgü" in joined
+    assert "bağımsız destek için ayrı lineage/independence kanıtı gerekir" in joined
+    assert "özel ortaklık" not in joined.casefold()
+    assert "nedensel katkı" not in joined.casefold()

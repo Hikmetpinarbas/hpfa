@@ -334,3 +334,39 @@ def test_user_output_gate_rejects_emit_ref_not_present_in_sequence(tmp_path: Pat
 
     assert result["status"] == "FAIL_CLOSED"
     assert result["reason"] == "professional_emit_handoff_missing:missing"
+
+def test_admission_gate_preserves_fusion_relation_review_metadata_without_safe_sentence_bypass(tmp_path: Path) -> None:
+    full = _full_spine_with_legacy_sentence()
+    full["intelligence_chains"][0]["fusion"] = {
+        "fusion_id": "fusion_1",
+        "fusion_status": "SUPPORTED",
+        "relation_counts": {"SUPPORTS": 2, "CONTEXTUALIZES": 1},
+        "admitted_counterevidence_count": 0,
+        "unresolved_counterevidence_count": 1,
+        "independent_support_count": 0,
+        "correlated_or_unknown_support_count": 2,
+        "dependency_challenge_count": 1,
+        "claim_ceiling": "fusion_relation_candidate_only",
+        "claim_output_allowed": False,
+    }
+    gated = runner._admission_gated_full_spine_for_user_outputs(
+        out_dir=tmp_path,
+        full_spine=full,
+        sequence={"safe_finding_handoff_candidates": []},
+        post_sequence={
+            "status": "PASS",
+            "safe_finding_admission": _admission(0),
+            "analyst_output_claim": _claim(0),
+        },
+    )
+
+    assert gated["status"] == "PASS"
+    projected = gated["full_spine"]
+    assert projected["intelligence_chains"] == []
+    assert projected["fusion_relation_review_record_count"] == 1
+    assert projected["fusion_relation_review_records"][0]["fusion_id"] == "fusion_1"
+    assert projected["fusion_relation_review_records"][0]["relation_counts"] == {"SUPPORTS": 2, "CONTEXTUALIZES": 1}
+    assert "safe_sentence" not in projected["fusion_relation_review_records"][0]
+    assert projected["fusion_relation_review_records_create_claim_authority"] is False
+    assert projected["fusion_relation_review_records_create_independent_support"] is False
+

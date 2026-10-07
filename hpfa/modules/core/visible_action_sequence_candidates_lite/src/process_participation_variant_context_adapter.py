@@ -190,6 +190,7 @@ def apply_process_context_to_comparison(
     process_participation_payload: dict[str, Any] | None,
     occurrence_consequence_payload: dict[str, Any] | None,
     occurrence_state_transition_payload: dict[str, Any] | None = None,
+    occurrence_object_role_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Downward-only process-context admission for already-materialized comparison pairs.
 
@@ -220,6 +221,14 @@ def apply_process_context_to_comparison(
     result["zone_context_outcome_used_in_readiness_audit"] = False
     result["zone_context_is_tracking_truth"] = False
     result["zone_context_is_tactical_truth"] = False
+    result["dual_view_process_participant_binding_consumed"] = False
+    result["dual_view_process_participant_binding_state"] = "NOT_AVAILABLE"
+    result["dual_view_process_participant_can_create_comparison_eligibility"] = False
+    result["dual_view_missing_view_is_negative_evidence"] = False
+    result["dual_view_provider_only_participant_is_error_truth"] = False
+    result["dual_view_participant_view_creates_off_ball_truth"] = False
+    result["dual_view_participant_view_creates_tactical_role_truth"] = False
+    result["dual_view_participant_view_creates_independent_support"] = False
 
     if not process_participation_payload or not occurrence_consequence_payload:
         return result
@@ -257,6 +266,37 @@ def apply_process_context_to_comparison(
         occurrence_consequence_payload.get("occurrence_consequence_projections"),
         "action_occurrence_candidate_id",
     )
+    object_role_by_occurrence: dict[str, set[str]] = {}
+    object_role_payload_usable = False
+    if occurrence_object_role_payload:
+        if (
+            occurrence_object_role_payload.get("canonical_event_count") == "UNKNOWN"
+            and occurrence_object_role_payload.get("production_release") is not True
+            and occurrence_object_role_payload.get("status") != "FAIL_CLOSED"
+        ):
+            for row in occurrence_object_role_payload.get("occurrence_object_role_projection") or []:
+                if not isinstance(row, dict):
+                    continue
+                occurrence_ref = _clean(row.get("action_occurrence_candidate_id"))
+                if not occurrence_ref:
+                    continue
+                actors = {
+                    _clean(binding.get("object_ref"))
+                    for binding in (row.get("object_role_bindings") or [])
+                    if isinstance(binding, dict)
+                    and _clean(binding.get("object_type")) == "PLAYER_CANDIDATE"
+                    and _clean(binding.get("object_role")) == "PRIMARY_ACTOR"
+                    and _clean(binding.get("object_ref"))
+                }
+                object_role_by_occurrence[occurrence_ref] = actors
+            object_role_payload_usable = True
+
+    participant_process_rows = [
+        row
+        for row in (process_participation_payload.get("process_participation_candidates") or [])
+        if isinstance(row, dict) and _clean(row.get("semantic_role")) == "PARTICIPATION_INTERVAL"
+    ]
+
     variants = [
         row for row in (result.get("partial_order_occurrence_variants") or []) if isinstance(row, dict)
     ]
@@ -302,6 +342,76 @@ def apply_process_context_to_comparison(
         variant["comparison_process_context_episode_spread_is_recurrence_truth"] = False
         variant["comparison_process_context_episode_navigation_is_possession_truth"] = False
         variant["comparison_process_context_is_tactical_plan_truth"] = False
+
+        occurrence_actor_refs: set[str] = set()
+        provider_participant_actor_refs: set[str] = set()
+        occurrence_windows: list[tuple[float, float]] = []
+        for occurrence_ref in variant.get("supporting_action_occurrence_candidate_ids") or []:
+            occurrence_ref = _clean(occurrence_ref)
+            occurrence_actor_refs.update(object_role_by_occurrence.get(occurrence_ref, set()))
+            occurrence = occurrence_by_id.get(occurrence_ref)
+            if not occurrence:
+                continue
+            starts = [_number(value) for value in occurrence.get("start_candidates") or []]
+            ends = [_number(value) for value in occurrence.get("end_candidates") or []]
+            starts = [value for value in starts if value is not None]
+            ends = [value for value in ends if value is not None]
+            if starts:
+                start = min(starts)
+                occurrence_windows.append((start, max(ends) if ends else start))
+
+        for process in participant_process_rows:
+            if _clean(process.get("team_identity_candidate_id")) != team:
+                continue
+            if _clean(process.get("period_candidate")) != period:
+                continue
+            family = _clean(process.get("process_family_candidate"))
+            if family_list and family not in set(family_list):
+                continue
+            process_start = _number(process.get("start_candidate"))
+            process_end = _number(process.get("end_candidate"))
+            actor_ref = _clean(process.get("actor_identity_candidate_id"))
+            if process_start is None or process_end is None or not actor_ref:
+                continue
+            if any(_ranges_overlap(start, end, process_start, process_end) for start, end in occurrence_windows):
+                provider_participant_actor_refs.add(actor_ref)
+
+        shared_actor_refs = occurrence_actor_refs & provider_participant_actor_refs
+        provider_only_actor_refs = provider_participant_actor_refs - occurrence_actor_refs
+        occurrence_only_actor_refs = occurrence_actor_refs - provider_participant_actor_refs
+        if not object_role_payload_usable:
+            participant_view_relation_state = "UNRESOLVED"
+            occurrence_actor_refs = set()
+            provider_only_actor_refs = set()
+            occurrence_only_actor_refs = set()
+        elif occurrence_actor_refs and provider_participant_actor_refs and occurrence_actor_refs == provider_participant_actor_refs:
+            participant_view_relation_state = "EXACT_VISIBLE_ACTOR_SET_MATCH"
+        elif occurrence_actor_refs and provider_participant_actor_refs and occurrence_actor_refs < provider_participant_actor_refs:
+            participant_view_relation_state = "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION"
+        elif occurrence_actor_refs and provider_participant_actor_refs and shared_actor_refs:
+            participant_view_relation_state = "PARTIAL_VISIBLE_ACTOR_SET_OVERLAP"
+        elif occurrence_actor_refs and not provider_participant_actor_refs:
+            participant_view_relation_state = "OCCURRENCE_ONLY_ACTOR_REVIEW_REQUIRED"
+        elif provider_participant_actor_refs and not occurrence_actor_refs:
+            participant_view_relation_state = "PROVIDER_ONLY_PARTICIPANT_WITHOUT_OCCURRENCE_ROLE"
+        else:
+            participant_view_relation_state = "UNRESOLVED"
+
+        variant["occurrence_actor_refs"] = sorted(occurrence_actor_refs)
+        variant["provider_participant_actor_refs"] = sorted(provider_participant_actor_refs)
+        variant["shared_actor_refs"] = sorted(shared_actor_refs if object_role_payload_usable else set())
+        variant["provider_only_actor_refs"] = sorted(provider_only_actor_refs)
+        variant["occurrence_only_actor_refs"] = sorted(occurrence_only_actor_refs)
+        variant["participant_view_relation_state"] = participant_view_relation_state
+        variant["object_role_coverage_state"] = (
+            "OBJECT_ROLE_SURFACE_AVAILABLE" if object_role_payload_usable else "OBJECT_ROLE_SURFACE_NOT_AVAILABLE"
+        )
+        variant["provider_only_participant_is_error_truth"] = False
+        variant["participant_view_creates_off_ball_truth"] = False
+        variant["participant_view_creates_tactical_role_truth"] = False
+        variant["participant_view_creates_independent_support"] = False
+        variant["participant_view_can_create_comparison_eligibility"] = False
+        variant["participant_view_claim_ceiling"] = "MATCH_LOCAL_DUAL_VIEW_PROCESS_PARTICIPATION_DESCRIPTION_ONLY"
         variant_context[variant_id] = {
             "families": set(family_list),
             "episodes": set(episode_list),
@@ -494,6 +604,18 @@ def apply_process_context_to_comparison(
     result["zone_context_outcome_used_in_readiness_audit"] = False
     result["zone_context_is_tracking_truth"] = False
     result["zone_context_is_tactical_truth"] = False
+    result["dual_view_process_participant_binding_consumed"] = object_role_payload_usable
+    result["dual_view_process_participant_binding_state"] = (
+        "OCCURRENCE_PRIMARY_ACTOR_AND_PROVIDER_PARTICIPATION_BOUND"
+        if object_role_payload_usable
+        else "NOT_AVAILABLE"
+    )
+    result["dual_view_process_participant_can_create_comparison_eligibility"] = False
+    result["dual_view_missing_view_is_negative_evidence"] = False
+    result["dual_view_provider_only_participant_is_error_truth"] = False
+    result["dual_view_participant_view_creates_off_ball_truth"] = False
+    result["dual_view_participant_view_creates_tactical_role_truth"] = False
+    result["dual_view_participant_view_creates_independent_support"] = False
     result["review_hits"] = sorted(set(result.get("review_hits") or []))
     return result
 

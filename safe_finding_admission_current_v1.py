@@ -585,6 +585,7 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
             process_participation_payload,
             occurrence_consequence_payload,
             occurrence_state_transition_payload,
+            action_occurrence_payload or None,
         )
         if source_payload.get("process_comparison_context_consumed") is True:
             counterevidence_projection = build_comparable_outcome_counterevidence(source_payload)
@@ -825,6 +826,14 @@ def runtime_write_outputs(sequence_json: str | Path, out_dir: str | Path) -> dic
     result["process_comparison_context_lowered_pair_count"] = int(
         source_payload.get("process_comparison_context_lowered_pair_count") or 0
     ) if source_payload else 0
+    result["dual_view_process_participant_binding_consumed"] = (
+        source_payload.get("dual_view_process_participant_binding_consumed") is True
+    ) if source_payload else False
+    result["dual_view_process_participant_binding_state"] = (
+        source_payload.get("dual_view_process_participant_binding_state")
+        if source_payload
+        else "NOT_AVAILABLE"
+    )
     result["process_context_counterevidence_recomputed"] = process_context_counterevidence_recomputed
     result["process_context_downstream_recomputed"] = process_context_downstream_recomputed
     result["process_context_stale_process_variant_surface_reused"] = stale_process_variant_surface_reused

@@ -434,3 +434,112 @@ def test_zone_context_readiness_audit_preserves_unknown_as_unresolved_not_mismat
     assert result["zone_context_hypothetical_context_mismatch_pair_count"] == 0
     assert result["zone_context_hypothetical_context_unresolved_pair_count"] == 1
     assert result["unknown_context_is_different_context"] is False
+
+
+def _occurrence_object_roles() -> dict:
+    return {
+        "status": "PASS",
+        "occurrence_object_role_projection": [
+            {
+                "action_occurrence_candidate_id": "o_left",
+                "object_role_bindings": [
+                    {"object_type": "PLAYER_CANDIDATE", "object_ref": "actor_a", "object_role": "PRIMARY_ACTOR"},
+                    {"object_type": "TEAM_CANDIDATE", "object_ref": "team_a", "object_role": "PRIMARY_TEAM"},
+                ],
+            },
+            {
+                "action_occurrence_candidate_id": "o_right",
+                "object_role_bindings": [
+                    {"object_type": "PLAYER_CANDIDATE", "object_ref": "actor_b", "object_role": "PRIMARY_ACTOR"},
+                    {"object_type": "PLAYER_CANDIDATE", "object_ref": "actor_x", "object_role": "COUNTERPART_ACTOR"},
+                ],
+            },
+        ],
+        "canonical_event_count": "UNKNOWN",
+        "true_action_count": "UNKNOWN",
+        "production_release": False,
+    }
+
+
+def _dual_view_process() -> dict:
+    payload = _team_context_process("POSITIONAL_ATTACK_CANDIDATE", "POSITIONAL_ATTACK_CANDIDATE")
+    payload["process_participation_candidates"].extend([
+        {
+            "semantic_role": "PARTICIPATION_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "actor_identity_candidate_id": "actor_a",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": 29.0,
+            "end_candidate": 32.0,
+        },
+        {
+            "semantic_role": "PARTICIPATION_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "actor_identity_candidate_id": "actor_provider_only",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": 29.0,
+            "end_candidate": 32.0,
+        },
+        {
+            "semantic_role": "PARTICIPATION_INTERVAL",
+            "process_family_candidate": "POSITIONAL_ATTACK_CANDIDATE",
+            "actor_identity_candidate_id": "actor_b",
+            "team_identity_candidate_id": "team_a",
+            "period_candidate": "1",
+            "start_candidate": 39.0,
+            "end_candidate": 42.0,
+        },
+    ])
+    return payload
+
+
+def test_dual_view_process_participants_preserve_occurrence_and_provider_views_without_role_truth() -> None:
+    result = apply_process_context_to_comparison(
+        _comparison_sequence(),
+        _dual_view_process(),
+        _occurrences(),
+        None,
+        _occurrence_object_roles(),
+    )
+    variants = {
+        row["partial_order_occurrence_variant_id"]: row
+        for row in result["partial_order_occurrence_variants"]
+    }
+    left = variants["v_left"]
+    right = variants["v_right"]
+
+    assert result["dual_view_process_participant_binding_consumed"] is True
+    assert left["occurrence_actor_refs"] == ["actor_a"]
+    assert left["provider_participant_actor_refs"] == ["actor_a", "actor_provider_only"]
+    assert left["shared_actor_refs"] == ["actor_a"]
+    assert left["provider_only_actor_refs"] == ["actor_provider_only"]
+    assert left["occurrence_only_actor_refs"] == []
+    assert left["participant_view_relation_state"] == "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION"
+
+    assert right["occurrence_actor_refs"] == ["actor_b"]
+    assert right["provider_participant_actor_refs"] == ["actor_b"]
+    assert right["shared_actor_refs"] == ["actor_b"]
+    assert right["participant_view_relation_state"] == "EXACT_VISIBLE_ACTOR_SET_MATCH"
+    assert "actor_x" not in right["occurrence_actor_refs"]
+
+    assert left["provider_only_participant_is_error_truth"] is False
+    assert left["participant_view_creates_off_ball_truth"] is False
+    assert left["participant_view_creates_tactical_role_truth"] is False
+    assert left["participant_view_creates_independent_support"] is False
+    assert result["dual_view_process_participant_can_create_comparison_eligibility"] is False
+
+
+def test_dual_view_missing_object_role_surface_is_unresolved_not_negative_evidence() -> None:
+    result = apply_process_context_to_comparison(
+        _comparison_sequence(),
+        _dual_view_process(),
+        _occurrences(),
+    )
+    for variant in result["partial_order_occurrence_variants"]:
+        assert variant["participant_view_relation_state"] == "UNRESOLVED"
+        assert variant["occurrence_only_actor_refs"] == []
+        assert variant["provider_only_actor_refs"] == []
+    assert result["dual_view_process_participant_binding_consumed"] is False
+    assert result["dual_view_missing_view_is_negative_evidence"] is False

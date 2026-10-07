@@ -58,6 +58,7 @@ SAFE_FINDING_ADMISSION_JSON = "safe_finding_admission_projection_v1.json"
 VISIBLE_SEQUENCE_JSON = "visible_action_sequence_candidates_lite_v1.json"
 RICH_MULTIFORMAT_JSON = "rich_multiformat_analysis_lattice_v1.json"
 MULTIFORMAT_INVENTORY_JSON = "multiformat_file_inventory_lite_v1.json"
+PROCESS_ACTOR_CONCENTRATION_JSON = "process_actor_participation_concentration_projection_v1.json"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -483,8 +484,19 @@ def _human_ratio(numerator: Any, denominator: Any) -> str:
         return "N/A"
 
 
+def _football_family_key(value: Any) -> str:
+    key = str(value or "").strip().upper().replace("-", "_").replace(" ", "_")
+    key = key.replace("_CANDIDATE", "")
+    return {
+        "POSITIONAL_ATTACKS": "POSITIONAL_ATTACK",
+        "COUNTERATTACKS": "COUNTERATTACK",
+        "SET_PIECE_ATTACKS": "SET_PIECE_ATTACK",
+        "TRANSITION_ATTACKS": "TRANSITION_ATTACK",
+    }.get(key, key)
+
+
 def _football_family_label(value: Any, language: str) -> str:
-    key = str(value or "").strip().replace("_CANDIDATE", "")
+    key = _football_family_key(value)
     labels_tr = {
         "POSITIONAL_ATTACK": "yerleşik hücum",
         "COUNTERATTACK": "kontra atak",
@@ -753,13 +765,67 @@ def _grammar_token_human(value: Any, language: str) -> str:
     return _grammar_human([token], language)
 
 
+def _human_dual_view_process_participant_cards(
+    root: Path, full_spine: dict[str, Any], identity: dict[str, Any], language: str
+) -> list[str]:
+    if not _declared_current(full_spine, VISIBLE_SEQUENCE_JSON):
+        return []
+    sequence = _load_json(root / VISIBLE_SEQUENCE_JSON)
+    if sequence.get("dual_view_process_participant_binding_consumed") is not True:
+        return []
+    teams = _human_team_labels(identity)
+    actors = _human_admitted_actor_labels(identity)
+    cards: list[str] = []
+    seen = set()
+    for row in sequence.get("partial_order_occurrence_variants") or []:
+        if not isinstance(row, dict):
+            continue
+        state = str(row.get("participant_view_relation_state") or "UNRESOLVED")
+        if state == "UNRESOLVED":
+            continue
+        team_ref = str(row.get("team_identity_candidate_id") or "").strip()
+        families = [str(v) for v in (row.get("comparison_process_context_families") or []) if str(v)]
+        occurrence_refs = [str(v) for v in (row.get("occurrence_actor_refs") or []) if str(v) in actors]
+        provider_refs = [str(v) for v in (row.get("provider_participant_actor_refs") or []) if str(v) in actors]
+        if not team_ref or not families or (not occurrence_refs and not provider_refs):
+            continue
+        key = (team_ref, families[0], tuple(sorted(occurrence_refs)), tuple(sorted(provider_refs)))
+        if key in seen:
+            continue
+        seen.add(key)
+        team = teams.get(team_ref, team_ref)
+        family = _football_family_label(families[0], language)
+        occ = ", ".join(actors[v] for v in occurrence_refs) or ("çözümlenmedi" if language == "tr" else "unresolved")
+        prov = ", ".join(actors[v] for v in provider_refs) or ("çözümlenmedi" if language == "tr" else "unresolved")
+        if language == "tr":
+            relation = {
+                "EXACT_VISIBLE_ACTOR_SET_MATCH": "iki görünümde aynı oyuncu seti",
+                "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION": "aksiyon görünümü süreç katılım görünümünün alt kümesi",
+                "PARTIAL_VISIBLE_ACTOR_SET_OVERLAP": "iki görünüm kısmen örtüşüyor",
+                "OCCURRENCE_ONLY_ACTOR_REVIEW_REQUIRED": "yalnız aksiyon üzerinde oyuncu görünümü var",
+                "PROVIDER_ONLY_PARTICIPANT_WITHOUT_OCCURRENCE_ROLE": "yalnız süreç katılım görünümü var",
+            }.get(state, "görünümler çözümlenemedi")
+            cards.append(f"{team} — {family}: aksiyon görünümünde [{occ}]; süreç katılım kaydında [{prov}]. {relation}. İki kayıt farklı kapsam taşır; yalnız süreç katılımında görülen oyuncu hata, görünmeyen rol, taktik görev veya nedensel katkı sayılmaz.")
+        else:
+            relation = {
+                "EXACT_VISIBLE_ACTOR_SET_MATCH": "the two views contain the same visible actor set",
+                "OCCURRENCE_ACTORS_SUBSET_OF_PROVIDER_PARTICIPATION": "the action-linked view is a subset of the process-participation view",
+                "PARTIAL_VISIBLE_ACTOR_SET_OVERLAP": "the two views partially overlap",
+                "OCCURRENCE_ONLY_ACTOR_REVIEW_REQUIRED": "only the action-linked player view is visible",
+                "PROVIDER_ONLY_PARTICIPANT_WITHOUT_OCCURRENCE_ROLE": "only the process-participation view is visible",
+            }.get(state, "the views remain unresolved")
+            cards.append(f"{team} — {family}: action-linked players [{occ}]; process-participation players [{prov}]. {relation}. The two records cover different observable scopes; a player seen only in process participation is not an error, unseen role, tactical assignment, or causal contribution.")
+    return cards
+
+
 def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], language: str) -> list[str]:
     c03 = (rich.get("constructs") or {}).get("C03") or {}
     profiles = [row for row in (c03.get("team_process_profiles") or []) if isinstance(row, dict)]
     if not profiles:
         return []
     teams = _human_team_labels(identity)
-    by_team: dict[str, dict[str, int]] = {}
+    actors = _human_admitted_actor_labels(identity)
+    by_team: dict[str, dict[str, Any]] = {}
     for row in profiles:
         team_id = str(row.get("team_identity_candidate_id") or "").strip()
         if not team_id:
@@ -775,6 +841,12 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 "opponent_takeover_after_breakdown": 0,
                 "mixed_team_same_time_review": 0,
                 "no_visible_followup": 0,
+                "actor_location_process": 0,
+                "actor_location_layers": 0,
+                "pass_only_location_excluded": 0,
+                "actor_location_actor_presence": {},
+                "actor_location_actor_anchor_observations": {},
+                "actor_location_actor_consequence_context": {},
             },
         )
         bucket["eligible"] += int(row.get("eligible_process_n") or 0)
@@ -795,10 +867,110 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
             presence.get("MIXED_TEAM_SAME_TIME_FOLLOW_UP_REVIEW_REQUIRED_CANDIDATE") or 0
         )
         bucket["no_visible_followup"] += int(presence.get("NO_VISIBLE_FOLLOW_UP_CANDIDATE") or 0)
+        actor_location = row.get("visible_actor_location_participation_profile")
+        if isinstance(actor_location, dict):
+            bucket["actor_location_process"] += int(actor_location.get("actor_location_observable_process_n") or 0)
+            bucket["actor_location_layers"] += int(actor_location.get("eligible_location_temporal_layer_n") or 0)
+            bucket["pass_only_location_excluded"] += int(actor_location.get("pass_only_temporal_layer_excluded_n") or 0)
+            for actor_context in actor_location.get("actor_location_actor_consequence_context_profiles") or []:
+                if not isinstance(actor_context, dict):
+                    continue
+                actor_id = str(actor_context.get("actor_identity_candidate_id") or "").strip()
+                if not actor_id:
+                    continue
+                aggregate = bucket["actor_location_actor_consequence_context"].setdefault(
+                    actor_id,
+                    {
+                        "shot_ending_actor_location_process_n": 0,
+                        "non_shot_actor_location_process_n": 0,
+                        "consequence_process_presence_counts": {},
+                        "actor_context_challenge_contracts": [],
+                    },
+                )
+                aggregate["shot_ending_actor_location_process_n"] += int(
+                    actor_context.get("shot_ending_actor_location_process_n") or 0
+                )
+                aggregate["non_shot_actor_location_process_n"] += int(
+                    actor_context.get("non_shot_actor_location_process_n") or 0
+                )
+                consequence_counts = aggregate["consequence_process_presence_counts"]
+                for key, count in (actor_context.get("consequence_process_presence_counts") or {}).items():
+                    consequence_counts[str(key)] = int(consequence_counts.get(str(key)) or 0) + int(count or 0)
+                challenge_contract = actor_context.get("actor_context_challenge_contract")
+                if isinstance(challenge_contract, dict):
+                    aggregate["actor_context_challenge_contracts"].append(dict(challenge_contract))
+            for actor_profile in actor_location.get("actor_location_actor_profiles") or []:
+                if not isinstance(actor_profile, dict):
+                    continue
+                actor_id = str(actor_profile.get("actor_identity_candidate_id") or "").strip()
+                if not actor_id:
+                    continue
+                bucket["actor_location_actor_presence"][actor_id] = (
+                    int(bucket["actor_location_actor_presence"].get(actor_id) or 0)
+                    + int(actor_profile.get("visible_process_presence_n") or 0)
+                )
+                bucket["actor_location_actor_anchor_observations"][actor_id] = (
+                    int(bucket["actor_location_actor_anchor_observations"].get(actor_id) or 0)
+                    + int(actor_profile.get("anchor_observation_n") or 0)
+                )
     cards: list[str] = []
     for team_id, values in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
         name = teams.get(team_id, team_id)
+        actor_location_candidates = [
+            (
+                int(presence_n or 0),
+                int(values["actor_location_actor_anchor_observations"].get(actor_id) or 0),
+                actors.get(actor_id),
+                actor_id,
+            )
+            for actor_id, presence_n in values["actor_location_actor_presence"].items()
+            if actors.get(actor_id)
+        ]
+        actor_location_candidates.sort(key=lambda item: (-item[0], -item[1], str(item[2])))
+        top_actor_location = actor_location_candidates[0] if actor_location_candidates else None
+        top_actor_context = (
+            values["actor_location_actor_consequence_context"].get(top_actor_location[3], {})
+            if top_actor_location
+            else {}
+        )
+        top_actor_challenge_contracts = [
+            row
+            for row in (top_actor_context.get("actor_context_challenge_contracts") or [])
+            if isinstance(row, dict)
+        ]
+        top_actor_mixed_challenge = any(
+            row.get("observed_variation_state")
+            == "MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT"
+            and row.get("challenge_type_candidate") == "UNDERCUT_CANDIDATE"
+            and bool(row.get("withdrawal_condition_candidates"))
+            for row in top_actor_challenge_contracts
+        )
         if language == "tr":
+            actor_location_sentence = ""
+            if top_actor_location:
+                consequence_counts = top_actor_context.get("consequence_process_presence_counts") or {}
+                handover_n = int(consequence_counts.get("OPPONENT_HANDOVER_CANDIDATE") or 0)
+                continuation_n = int(consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
+                context_sentence = ""
+                if handover_n or continuation_n:
+                    challenge_sentence = ""
+                    if top_actor_mixed_challenge:
+                        challenge_sentence = (
+                            " Aynı oyuncu bağlamında hem devam hem rakip cevabı görünür; "
+                            "tek yönlü sonuç anlatısı qualify edilmeli ve yalnız ek kanıtla genişletilmelidir."
+                        )
+                    context_sentence = (
+                        f" Bu actor-location bağlamındaki süreçlerin {handover_n} tanesinde rakibe geçiş, "
+                        f"{continuation_n} tanesinde aynı takım devamı görüldü; "
+                        "bu eşleşmenin claim kapsamı maç-içi görünür bağlamla sınırlıdır; nedensel oyuncu katkısı için ek kanıt gerekir."
+                        f"{challenge_sentence}"
+                    )
+                actor_location_sentence = (
+                    f" Kimliği admitted olan {top_actor_location[2]} "
+                    f"{top_actor_location[0]} görünür süreçte actor-location katılımı verdi; "
+                    f"bu yüzeyde {top_actor_location[1]} anchor gözlemi var."
+                    f"{context_sentence}"
+                )
             football = (
                 f"{name}: Sistem bu maçta {values['eligible']} görünür oyun sürecini takım bağlamına bağlayabildi. "
                 f"Bunların {values['loss']} tanesinde top kaybı, {values['recovery']} tanesinde top kazanımı ve "
@@ -806,14 +978,42 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 f"Görünür devam/sonuç yüzeyinde {values['opponent_handover']} süreçte rakibe geçiş, "
                 f"{values['opponent_takeover_after_breakdown']} süreçte breakdown sonrası rakip takeover, "
                 f"{values['mixed_team_same_time_review']} süreçte aynı-zamanlı iki takım belirsizliği ve "
-                f"{values['no_visible_followup']} süreçte görünür follow-up yokluğu kaydedildi."
+                f"{values['no_visible_followup']} süreçte görünür follow-up yokluğu kaydedildi. "
+                f"Konum katılım yüzeyinde {values['actor_location_process']} süreçte actor-location gözlemi, "
+                f"{values['actor_location_layers']} admitted actor-location katmanı görüldü; "
+                f"{values['pass_only_location_excluded']} PASS-only katman konum hesabından dışlandı."
+                f"{actor_location_sentence}"
             )
             evidence = (
                 "Okuma çerçevesi: Aynı süreçte birden fazla consequence-response kategorisi birlikte yer alabilir. "
                 "Bu yüzey rakibe geçiş, breakdown sonrası takeover, same-time review ve follow-up durumlarının "
-                "maç-içi süreç kompozisyonunu gösterir."
+                "maç-içi süreç kompozisyonunu gösterir. Actor-location yüzeyi admitted on-ball/interaction "
+                "konum katılımını betimler; takım şekli, off-ball geometri ve fiziksel oyuncu konumu bu yüzeyin claim kapsamı dışındadır."
             )
         else:
+            actor_location_sentence = ""
+            if top_actor_location:
+                consequence_counts = top_actor_context.get("consequence_process_presence_counts") or {}
+                handover_n = int(consequence_counts.get("OPPONENT_HANDOVER_CANDIDATE") or 0)
+                continuation_n = int(consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0)
+                context_sentence = ""
+                if handover_n or continuation_n:
+                    challenge_sentence = ""
+                    if top_actor_mixed_challenge:
+                        challenge_sentence = (
+                            " Both continuation and opponent-response contexts are visible for the same actor; "
+                            "a one-direction outcome narrative should remain qualified unless additional evidence supports it."
+                        )
+                    context_sentence = (
+                        f" Within those actor-location contexts, {handover_n} processes showed opponent handover and "
+                        f"{continuation_n} same-team continuation; this co-observation is match-local context only."
+                        f"{challenge_sentence}"
+                    )
+                actor_location_sentence = (
+                    f" Admitted identity {top_actor_location[2]} appeared in actor-location participation across "
+                    f"{top_actor_location[0]} visible processes with {top_actor_location[1]} anchor observations."
+                    f"{context_sentence}"
+                )
             football = (
                 f"{name}: The system linked {values['eligible']} visible match processes to this team. "
                 f"A visible loss occurred in {values['loss']}, a recovery in {values['recovery']}, and "
@@ -821,12 +1021,17 @@ def _human_team_process_cards(rich: dict[str, Any], identity: dict[str, Any], la
                 f"On the visible consequence-response surface, {values['opponent_handover']} processes contained an opponent handover, "
                 f"{values['opponent_takeover_after_breakdown']} an opponent takeover after breakdown, "
                 f"{values['mixed_team_same_time_review']} a mixed-team same-time review state, and "
-                f"{values['no_visible_followup']} no visible follow-up."
+                f"{values['no_visible_followup']} no visible follow-up. "
+                f"On the location-participation surface, {values['actor_location_process']} processes contained actor-location observations, "
+                f"covering {values['actor_location_layers']} admitted actor-location layers; "
+                f"{values['pass_only_location_excluded']} PASS-only layers were excluded from location calculation."
+                f"{actor_location_sentence}"
             )
             evidence = (
                 "Reading frame: multiple consequence-response categories may coexist within the same process. "
                 "This surface describes the match-local process composition of opponent handover, takeover after breakdown, "
-                "same-time review, and follow-up states."
+                "same-time review, and follow-up states. The actor-location surface is scoped to admitted on-ball/interaction "
+                "location participation; team shape, off-ball geometry, and physical player-location truth remain outside this claim scope."
             )
         cards.extend([football, evidence])
     return cards
@@ -1272,6 +1477,84 @@ def _human_circulation_fate_cards(rich: dict[str, Any], identity: dict[str, Any]
             evidence = (
                 "Evidence note: the denominator contains only admitted process signatures with a visible PASS or CARRY layer. "
                 "Scope is limited to visible process fate; sterile/productive football, possession superiority, tactical quality, causality, and player credit require separate evidence."
+            )
+        cards.extend([football, evidence])
+    return cards
+
+
+def _human_process_route_breadth_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
+    context = rich.get("visible_process_route_breadth_profile") or {}
+    if str(context.get("status") or "").upper() != "PASS":
+        return []
+    profiles = [row for row in (context.get("profiles") or []) if isinstance(row, dict)]
+    if not profiles:
+        return []
+
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+    for row in sorted(
+        profiles,
+        key=lambda item: (
+            teams.get(str(item.get("team_identity_candidate_id") or ""), ""),
+            str(item.get("process_family_candidate") or ""),
+        ),
+    ):
+        # Fail closed if any stronger route/tactical interpretation leaked upstream.
+        if any(
+            row.get(flag) is not False
+            for flag in (
+                "route_is_physical_trajectory_truth",
+                "route_is_line_break_truth",
+                "route_breadth_is_tactical_flexibility_truth",
+                "route_breadth_is_unpredictability_truth",
+                "route_breadth_is_superiority_truth",
+                "coach_intention_truth",
+            )
+        ):
+            continue
+
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        team = teams.get(team_id, team_id or ("Takım çözümlenmedi" if language == "tr" else "Team unresolved"))
+        family = _football_family_label(row.get("process_family_candidate"), language)
+        eligible = int(row.get("eligible_process_n") or 0)
+        route_n = int(row.get("eligible_unambiguous_route_process_n") or 0)
+        unresolved_n = int(row.get("ambiguous_or_unresolved_route_process_n") or 0)
+        unique_n = int(row.get("unique_visible_route_candidate_n") or 0)
+        recurring_n = int(row.get("recurring_visible_route_candidate_n") or 0)
+        top_route = str(row.get("top_visible_route_candidate") or "").strip()
+        top_route_display = top_route.replace("_", " ").replace("->", "→")
+        top_n = int(row.get("top_visible_route_process_n") or 0)
+
+        if eligible <= 0 or route_n <= 0 or unique_n <= 0:
+            continue
+
+        if language == "tr":
+            football = (
+                f"{team} — {family}: {route_n}/{eligible} süreçte tekil başlangıç→bitiş rotası adayı çözüldü; "
+                f"{unique_n} farklı görünür rota adayı, {recurring_n} tekrarlanan rota adayı."
+            )
+            if top_route and top_n > 0:
+                football += f" En sık görünür rota adayı {top_route_display} {top_n}/{route_n}."
+            if unresolved_n:
+                football += f" {unresolved_n} süreçte başlangıç/bitiş rota bağlamı belirsiz veya çözümlenmemiş kaldı."
+            evidence = (
+                "Kanıt notu: bu yüzeyin kapsamı admitted süreç imzalarındaki tekil görünür başlangıç ve bitiş bölge adaylarıdır; fiziksel rota, gerçek oyuncu/top yolu, line-break, taktik esneklik, öngörülemezlik, üstünlük ve teknik ekip niyeti yorumları için ayrı observation gerekir."
+            )
+        else:
+            football = (
+                f"{team} — {family}: a single visible start→end route candidate was resolved in {route_n}/{eligible} processes; "
+                f"{unique_n} distinct visible route candidates, {recurring_n} recurring route candidates."
+            )
+            if top_route and top_n > 0:
+                football += f" Most frequent visible route candidate: {top_route_display} {top_n}/{route_n}."
+            if unresolved_n:
+                football += f" Start/end route context remained ambiguous or unresolved in {unresolved_n} processes."
+            evidence = (
+                "Evidence note: this surface is scoped to single visible start- and end-zone candidates from admitted process signatures; physical trajectory, actual player/ball path, line breaks, tactical flexibility, unpredictability, superiority, and coaching-intention interpretations require separate observations."
             )
         cards.extend([football, evidence])
     return cards
@@ -3397,6 +3680,21 @@ def _human_c02_cards(
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; maç içi betimleyici oran karşılaştırması={float(lift):.2f}x"
+            if entity_type == "DYAD":
+                dyad_pool_n = int(c02.get("selection_scope_dyad_candidate_count") or 0)
+                shared_target_n = int(candidate.get("target_process_ref_overlap_count_with_other_dyads") or 0)
+                unique_target_n = int(candidate.get("unique_to_this_dyad_target_process_ref_count") or 0)
+                shared_episode_n = int(candidate.get("target_episode_ref_overlap_count_with_other_dyads") or 0)
+                if dyad_pool_n:
+                    evidence += f"; current match gridinde {dyad_pool_n} ikili aday post-hoc tarandı"
+                if shared_target_n or unique_target_n or shared_episode_n:
+                    evidence += (
+                        f"; {shared_target_n} target örneği başka ikililerle aynı episode'u paylaşıyor; "
+                        f"{unique_target_n} target örneği bu ikiliye özgü"
+                    )
+                    if shared_episode_n:
+                        evidence += f"; paylaşılan target episode sayısı={shared_episode_n}"
+                    evidence += "; bağımsız destek için ayrı lineage/independence kanıtı gerekir"
             evidence += (
                 ". Bu profil maç-içi betimleyici association yüzeyidir ve analyst-review önceliği üretir. "
                 "Oyuncu adı yalnız kabul edilmiş maç-içi oyuncu etiketidir; global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır."
@@ -3422,6 +3720,21 @@ def _human_c02_cards(
             )
             if isinstance(lift, (int, float)):
                 evidence += f"; match-local descriptive ratio={float(lift):.2f}x"
+            if entity_type == "DYAD":
+                dyad_pool_n = int(c02.get("selection_scope_dyad_candidate_count") or 0)
+                shared_target_n = int(candidate.get("target_process_ref_overlap_count_with_other_dyads") or 0)
+                unique_target_n = int(candidate.get("unique_to_this_dyad_target_process_ref_count") or 0)
+                shared_episode_n = int(candidate.get("target_episode_ref_overlap_count_with_other_dyads") or 0)
+                if dyad_pool_n:
+                    evidence += f"; {dyad_pool_n} pair candidates were screened post-hoc in the current match grid"
+                if shared_target_n or unique_target_n or shared_episode_n:
+                    evidence += (
+                        f"; {shared_target_n} target examples share an episode with other pairs; "
+                        f"{unique_target_n} target examples are unique to this pair"
+                    )
+                    if shared_episode_n:
+                        evidence += f"; shared target episode count={shared_episode_n}"
+                    evidence += "; episode/pair overlap is not independent support"
             evidence += (
                 ". This profile is a match-local descriptive association surface for analyst review. "
                 "The player name is only an admitted actor-identity label; global/cross-match player identity remains outside scope."
@@ -3457,6 +3770,17 @@ def _human_player_function_cards(
         actor_id = str(score_row.get("actor_identity_candidate_id") or "").strip()
         if actor_id:
             score_state_by_actor.setdefault(actor_id, []).append(score_row)
+
+    function_review_by_actor: dict[str, dict[str, Any]] = {
+        str(row.get("actor_identity_candidate_id") or "").strip(): row
+        for row in (score_state_surface.get("function_hypothesis_review_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("actor_identity_candidate_id") or "").strip()
+        and str(row.get("review_state") or "")
+        == "MATCH_LOCAL_FUNCTION_CONTEXT_VARIATION_REVIEW_CANDIDATE"
+        and row.get("creates_new_evidence") is False
+        and row.get("can_authorize_player_value_claim") is False
+    }
 
     state_function_evidence = (
         identity.get("__spatial_progression_evidence__")
@@ -3567,6 +3891,34 @@ def _human_player_function_cards(
                         "CREATE=UNKNOWN; DENY=UNKNOWN."
                     )
 
+            review_contract = function_review_by_actor.get(actor_id) or {}
+            function_review_bit = ""
+            if review_contract:
+                state_n = int(review_contract.get("observed_score_state_context_n") or 0)
+                family_n = int(review_contract.get("observed_process_family_n") or 0)
+                if language == "tr":
+                    function_review_bit = (
+                        f" İşlev inceleme adayı: {state_n} admitted skor bağlamında {family_n} görünür süreç ailesi izlendi "
+                        "ve süreç bileşimi bağlamlar arasında farklılaştı. "
+                        "Bu adayın kapsamı maç-içi görünür işlev değişimidir; oyuncu değeri, kalıcı rol, off-ball rol ve "
+                        "nedensel katkı yorumları için ayrı gözlem gerekir. "
+                        "Alternatif açıklamalar arasında skor durumlarındaki oyuncu maruziyeti, takım süreç fırsat bileşimi, "
+                        "rakip/maç bağlamı ve shared-process dependency açık tutulur. "
+                        "Analist aksiyonu: aynı oyuncunun görünür süreç-aile katılımını skor bağlamları arasında karşılaştır; "
+                        "fırsat bileşimi, consequence bağlamı, dependency ve exposure sınırlarını birlikte kontrol et."
+                    )
+                else:
+                    function_review_bit = (
+                        f" Function review candidate: {state_n} admitted score contexts contain {family_n} visible process families "
+                        "and the visible process mix varies across those contexts. "
+                        "The review scope is match-local visible function variation; player value, persistent role, off-ball role, "
+                        "and causal-contribution interpretations require separate observation. "
+                        "Alternative explanations keep player exposure, team process-opportunity mix, opponent/match context, and "
+                        "shared-process dependency open. "
+                        "Analyst action: compare the same player's visible process-family participation across score contexts, then "
+                        "review opportunity mix, consequence context, dependency, and exposure limits together."
+                    )
+
             metrics = _player_profile_metric_values(row)
             metric_bits: list[str] = []
             for key, tr_label, en_label in preferred_metrics:
@@ -3593,6 +3945,7 @@ def _human_player_function_cards(
                 if metric_bits:
                     text += " Aggregate fonksiyon bağlamı: " + ", ".join(metric_bits) + "."
                 text += state_function_bit
+                text += function_review_bit
                 text += (
                     " Bu kart yalnız maç-içi görünür işlev bağlamıdır. İsim yalnız kabul edilmiş maç-içi oyuncu etiketidir; "
                     "global/cross-match oyuncu kimliği bu kartın kapsamı dışındadır. Oyuncu niteliği ve kalıcı/taktik rol yorumu "
@@ -3613,6 +3966,7 @@ def _human_player_function_cards(
                 if metric_bits:
                     text += " Aggregate function context: " + ", ".join(metric_bits) + "."
                 text += state_function_bit
+                text += function_review_bit
                 text += (
                     " This is match-local function context only. The name is only an admitted actor-identity label; "
                     "global/cross-match player identity remains outside scope. Player quality and persistent/tactical-role interpretation "
@@ -4198,7 +4552,28 @@ def _hp_clean_football_line(value: Any) -> str | None:
         if not cleaned:
             continue
         low = cleaned.casefold()
-        if any(token in low for token in forbidden_sentence_tokens):
+        forbidden_hit = any(
+            token in low
+            for token in forbidden_sentence_tokens
+            if token != "layer"
+        )
+        if not forbidden_hit:
+            normalized_words = (
+                low.replace(",", " ")
+                .replace(":", " ")
+                .replace(";", " ")
+                .replace("(", " ")
+                .replace(")", " ")
+                .replace("[", " ")
+                .replace("]", " ")
+                .replace("{", " ")
+                .replace("}", " ")
+                .replace("/", " ")
+                .replace("-", " ")
+                .split()
+            )
+            forbidden_hit = "layer" in normalized_words
+        if forbidden_hit:
             continue
         cleaned = cleaned.replace("görünür ", "").replace("Görünür ", "")
         cleaned = cleaned.replace("_CANDIDATE", "").replace("_", " ")
@@ -4243,6 +4618,10 @@ def _build_hp_football_report_tr_v0(output_root: str | Path, full_spine: dict[st
     circulation = _hp_take_clean(
         _human_circulation_fate_cards(rich, identity, "tr") if rich_current else [],
         limit=6,
+    )
+    route_breadth = _hp_take_clean(
+        _human_process_route_breadth_cards(rich, identity, "tr") if rich_current else [],
+        limit=4,
     )
     score_state = _hp_take_clean(
         _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else [],
@@ -4306,6 +4685,12 @@ def _build_hp_football_report_tr_v0(output_root: str | Path, full_spine: dict[st
         lines.extend(f"- {line}" for line in team_profile)
     else:
         lines.append("- Topla oyunun ilerleme ve üretim yolları bu maçta yeterince ayrıştırılamadı.")
+
+    lines.extend(["", "GÖRÜNÜR SÜREÇ ROTALARI"])
+    if route_breadth:
+        lines.extend(f"- {line}" for line in route_breadth)
+    else:
+        lines.append("- Başlangıç ve bitiş bölgesi birlikte çözülebilen süreçlerde güvenli bir rota çeşitliliği özeti oluşmadı.")
 
     lines.extend(["", "TOP KAYBI VE KAZANIM SONRASI"])
     if loss_recovery:
@@ -4446,6 +4831,22 @@ def build_hp_football_report_tr(
     teams = _human_team_labels(identity)
     actors = _human_admitted_actor_labels(identity)
     profiles = _hp_profile_rows(rich)
+    route_breadth = _hp_take_clean(
+        _human_process_route_breadth_cards(rich, identity, "tr") if rich_current else [],
+        limit=4,
+    )
+    specialist_cards = _hp_take_clean(
+        _human_residual_specialist_cards(rich, identity, "tr") if rich_current else [],
+        limit=10,
+    )
+    actor_concentration_cards = _hp_take_clean(
+        _human_process_actor_concentration_cards(root, full_spine, identity, "tr"),
+        limit=6,
+    )
+    dual_view_participant_cards = _hp_take_clean(
+        _human_dual_view_process_participant_cards(root, full_spine, identity, "tr"), limit=6
+    )
+    fusion_relation_cards = _hp_take_clean(_human_fusion_relation_cards(full_spine, "tr"), limit=2)
 
     by_team: dict[str, dict[str, dict[str, Any]]] = {}
     for row in profiles:
@@ -4506,6 +4907,16 @@ def build_hp_football_report_tr(
                     f"- {_tr_possessive(name)} bu maçtaki şut üretimi kontra atak sayısından değil, daha çok yerleşik hücumların son bölümünden geldi."
                 )
 
+    lines.extend(["", "GÖRÜNÜR SÜREÇ ROTALARI"])
+    if route_breadth:
+        lines.extend(f"- {line}" for line in route_breadth)
+    else:
+        lines.append("- Başlangıç ve bitiş bölgesi birlikte çözülebilen süreçlerde güvenli bir rota çeşitliliği özeti oluşmadı.")
+
+    if dual_view_participant_cards:
+        lines.extend(["", "OYUNCU KATILIM GÖRÜNÜMLERİ"])
+        lines.extend(f"- {line}" for line in dual_view_participant_cards)
+
     lines.extend(["", "TOP KAYBI VE KAZANIM SONRASI"])
     loss = rich.get("loss_next_opponent_process_context") or {}
     recovery = rich.get("recovery_next_process_context") or {}
@@ -4517,12 +4928,12 @@ def build_hp_football_report_tr(
         next_counts: Counter[str] = Counter()
         for row in team_losses:
             for fam in row.get("next_opponent_process_family_candidates") or []:
-                next_counts[str(fam)] += 1
+                next_counts[_football_family_key(fam)] += 1
         team_rec = [r for r in rec_rows if ref in (r.get("team_identity_candidate_ids") or [])]
         rec_counts: Counter[str] = Counter()
         for row in team_rec:
             for fam in row.get("next_visible_process_family_candidates") or []:
-                rec_counts[str(fam)] += 1
+                rec_counts[_football_family_key(fam)] += 1
         loss_detail = ", ".join(
             f"{_football_family_label(fam, 'tr')} {n}" for fam, n in next_counts.most_common()
         ) or "tek bir sonraki hücum tipine güvenli biçimde bağlanamayan örnekler ağırlıkta"
@@ -4557,9 +4968,27 @@ def build_hp_football_report_tr(
             )
     lines.append("- Bu değişim maçın farklı bölümlerinde kullanılan hücum yollarının farklılaştığını gösterir. Taktik değişiklik veya momentum yorumu için ek bağlam gerekir.")
 
-    lines.extend(["", "TEKRAR EDEN YOLLAR VE AYRIŞMA NOKTALARI"])
+    lines.extend(["", "TEKRAR EDEN YOLLAR VE VARYANTLAR"])
     feature = _load_json(root / FEATURE_DELTA_JSON)
     records = [r for r in feature.get("grammar_stable_variant_feature_delta_records") or [] if isinstance(r, dict)]
+    mechanism_cards = (
+        _human_mechanism_cards(
+            root,
+            full_spine,
+            identity,
+            "tr",
+            analyst_question_payload=analyst_question_payload,
+        )
+        if records
+        else []
+    )
+    mechanism_highlights = _hp_take_clean(
+        _human_match_story_mechanism_highlights(mechanism_cards, "tr", limit=4),
+        limit=4,
+    )
+    if mechanism_highlights:
+        lines.extend(f"- {line}" for line in mechanism_highlights)
+
     records.sort(
         key=lambda r: (
             int(r.get("visible_episode_spread_count") or 0),
@@ -4567,58 +4996,7 @@ def build_hp_football_report_tr(
         ),
         reverse=True,
     )
-    if analyst_question_payload and records:
-        analyst_output_payload = (
-            _load_json(root / ANALYST_OUTPUT_CLAIM_JSON)
-            if _declared_current(full_spine, ANALYST_OUTPUT_CLAIM_JSON)
-            else {}
-        )
-        process_variant_payload = (
-            _load_json(root / PROCESS_VARIANT_JSON)
-            if _declared_current(full_spine, PROCESS_VARIANT_JSON)
-            else {}
-        )
-        process_participation_payload = (
-            _load_json(root / PROCESS_PARTICIPATION_JSON)
-            if _declared_current(full_spine, PROCESS_PARTICIPATION_JSON)
-            else {}
-        )
-        variant_feature_challenge_payload = (
-            _load_json(root / VARIANT_FEATURE_CHALLENGE_JSON)
-            if _declared_current(full_spine, VARIANT_FEATURE_CHALLENGE_JSON)
-            else {}
-        )
-        question_shortlist = build_mechanism_story_review_shortlist(
-            feature,
-            analyst_output_claim_payload=analyst_output_payload or None,
-            process_variant_payload=process_variant_payload or None,
-            process_participation_payload=process_participation_payload or None,
-            variant_feature_challenge_payload=variant_feature_challenge_payload or None,
-            analyst_question_payload=analyst_question_payload,
-            limit=max(5, len(records)),
-        )
-        if question_shortlist.get("analyst_question_binding_state") == "BOUND_EXPLICIT_FOCUS_DIMENSIONS":
-            attention_order = {
-                str(row.get("source_mechanism_review_ref") or ""): index
-                for index, row in enumerate(question_shortlist.get("shortlist") or [])
-                if isinstance(row, dict) and str(row.get("source_mechanism_review_ref") or "")
-            }
-            if attention_order:
-                baseline_index = {
-                    str(row.get("grammar_stable_variant_feature_delta_id") or ""): index
-                    for index, row in enumerate(records)
-                }
-                records.sort(
-                    key=lambda row: (
-                        0 if str(row.get("grammar_stable_variant_feature_delta_id") or "") in attention_order else 1,
-                        attention_order.get(
-                            str(row.get("grammar_stable_variant_feature_delta_id") or ""),
-                            baseline_index.get(str(row.get("grammar_stable_variant_feature_delta_id") or ""), len(records)),
-                        ),
-                        baseline_index.get(str(row.get("grammar_stable_variant_feature_delta_id") or ""), len(records)),
-                    )
-                )
-    rendered = 0
+    rendered = len(mechanism_highlights)
     for row in records:
         team_ids = [str(v) for v in row.get("team_identity_candidate_ids") or [] if str(v)]
         if not team_ids:
@@ -4640,13 +5018,23 @@ def build_hp_football_report_tr(
             f"{resolved} karşılaştırılabilir örneğin sonuçları aynı olmadı; bu nedenle asıl inceleme noktası ilk aksiyon değil, bağlantının hangi koşulda devam edip hangi koşulda koptuğu."
         )
         rendered += 1
-        if rendered >= 3:
+        if rendered >= 4:
             break
     if not rendered:
         lines.append("- Aynı futbol probleminin farklı sonuçlara gittiği yeterince güçlü tekrar eden bir bağlantı bulunmadı.")
 
     lines.extend(["", "OYUNCU İŞLEVLERİ"])
     player_surface = rich.get("player_score_state_process_participation") or {}
+    function_review_by_actor = {
+        str(row.get("actor_identity_candidate_id") or "").strip(): row
+        for row in (player_surface.get("function_hypothesis_review_candidates") or [])
+        if isinstance(row, dict)
+        and str(row.get("actor_identity_candidate_id") or "").strip()
+        and str(row.get("review_state") or "")
+        == "MATCH_LOCAL_FUNCTION_CONTEXT_VARIATION_REVIEW_CANDIDATE"
+        and row.get("creates_new_evidence") is False
+        and row.get("can_authorize_player_value_claim") is False
+    }
     aggregate: dict[str, dict[str, Any]] = {}
     for row in player_surface.get("profiles") or []:
         if not isinstance(row, dict):
@@ -4655,6 +5043,7 @@ def build_hp_football_report_tr(
         if not ref:
             continue
         item = aggregate.setdefault(ref, {
+            "actor_ref": ref,
             "team_ref": str(row.get("team_identity_candidate_id") or ""),
             "label": actors.get(ref) or _display_label(row.get("actor_label_candidate") or ref),
             "families": Counter(),
@@ -4666,7 +5055,11 @@ def build_hp_football_report_tr(
         for fam, n in (row.get("process_family_counts") or {}).items():
             item["families"][str(fam)] += int(n or 0)
     top_players = []
-    for team_ref in team_refs:
+    player_team_refs = sorted(
+        {str(item.get("team_ref") or "") for item in aggregate.values() if str(item.get("team_ref") or "")},
+        key=lambda ref: teams.get(ref, ref),
+    )
+    for team_ref in player_team_refs:
         team_rows = [
             item for item in aggregate.values()
             if item.get("team_ref") == team_ref
@@ -4681,8 +5074,26 @@ def build_hp_football_report_tr(
             f"- {teams.get(item['team_ref'], item['team_ref'])} — {item['label']}: {item['total']} takım akışında yer aldı; "
             f"{item['shot']} şutla biten akışta göründü. En sık yer aldığı bağlamlar: {fam_text}."
         )
+        review = function_review_by_actor.get(str(item.get("actor_ref") or "")) or {}
+        if review:
+            state_n = int(review.get("observed_score_state_context_n") or 0)
+            family_n = int(review.get("observed_process_family_n") or 0)
+            lines.append(
+                f"- İşlev inceleme adayı — {item['label']}: {state_n} skor bağlamında {family_n} süreç ailesi; "
+                "görünür süreç bileşimi bağlamlar arasında farklılaştı. Analist kontrolü: aynı oyuncunun süreç-aile dağılımını skor bağlamları arasında yeniden karşılaştır."
+            )
     if top_players:
         lines.append("- Bu bölüm oyuncunun kalıcı rolünü değil, bu maçta takımın hangi oyun akışlarında daha sık göründüğünü anlatır.")
+
+    lines.extend(["", "BAĞLI UZMAN YÜZEYLER"])
+    if specialist_cards:
+        lines.extend(f"- {line}" for line in specialist_cards)
+    else:
+        lines.append("- Bu çalışmada ek specialist-synthesis kartı oluşmadı.")
+    if actor_concentration_cards:
+        lines.extend(f"- {line}" for line in actor_concentration_cards)
+    if fusion_relation_cards:
+        lines.extend(f"- {line}" for line in fusion_relation_cards)
 
     lines.extend(["", "ANALİST KARARI — NEREYE BAKMALI?"])
     if positional_rows:
@@ -4707,6 +5118,336 @@ def build_hp_football_report_tr(
     lines.append("")
     return "\n".join(lines)
 
+
+
+
+def _human_process_actor_concentration_cards(
+    root: Path,
+    full_spine: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
+    if not _declared_current(full_spine, PROCESS_ACTOR_CONCENTRATION_JSON):
+        return []
+    payload = _load_json(root / PROCESS_ACTOR_CONCENTRATION_JSON)
+    if str(payload.get("status") or "") not in {"PASS", "REVIEW_REQUIRED"}:
+        return []
+    actors = _human_admitted_actor_labels(identity)
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+    for row in payload.get("process_actor_concentration_profiles") or []:
+        if not isinstance(row, dict):
+            continue
+        team_id = str(row.get("team_identity_candidate_id") or "").strip()
+        family = str(row.get("process_family_candidate") or "").strip()
+        observed_n = int(row.get("actor_observable_process_count") or 0)
+        coverage_num = int(row.get("actor_observation_coverage_numerator") or 0)
+        coverage_den = int(row.get("actor_observation_coverage_denominator") or 0)
+        counts = {
+            str(k): int(v or 0)
+            for k, v in (row.get("actor_process_counts") or {}).items()
+            if int(v or 0) > 0
+        }
+        dyads = {
+            str(k): int(v or 0)
+            for k, v in (row.get("dyad_process_counts") or {}).items()
+            if int(v or 0) > 0
+        }
+        if not team_id or not family or observed_n <= 0 or not counts:
+            continue
+        top_actor_id, top_actor_n = max(counts.items(), key=lambda item: (item[1], item[0]))
+        top_actor = actors.get(top_actor_id)
+        if not top_actor:
+            continue
+        top_actor_bits = top_actor.split(". ", 1)
+        top_actor_display = top_actor_bits[1] if len(top_actor_bits) == 2 and top_actor_bits[0].isdigit() else top_actor
+        top_dyad_text = ""
+        if dyads:
+            dyad_id, dyad_n = max(dyads.items(), key=lambda item: (item[1], item[0]))
+            parts = dyad_id.split("|")
+            if len(parts) == 2 and parts[0] in actors and parts[1] in actors:
+                left = actors[parts[0]]
+                right = actors[parts[1]]
+                left_bits = left.split(". ", 1)
+                right_bits = right.split(". ", 1)
+                left_display = left_bits[1] if len(left_bits) == 2 and left_bits[0].isdigit() else left
+                right_display = right_bits[1] if len(right_bits) == 2 and right_bits[0].isdigit() else right
+                top_dyad_text = f"{left_display} + {right_display} {dyad_n}"
+        team = teams.get(team_id, team_id)
+        family_label = _football_family_label(family, language)
+        coverage = f"{coverage_num}/{coverage_den}" if coverage_den > 0 else str(observed_n)
+        if language == "tr":
+            dyad_bit = f"; en sık aynı süreçte birlikte görünme {top_dyad_text}" if top_dyad_text else ""
+            text = (
+                f"Oyuncu süreç yoğunlaşması — {team}, {family_label}: actor annotation coverage {coverage}; "
+                f"{top_actor_display} {top_actor_n}/{observed_n} gözlenebilir süreçte yer aldı{dyad_bit}; kapsam aynı process instance içindeki gözlenebilir eş-katılımdır; "
+                "pas ilişkisi, nedensel işbirliği, kalıcı rol, taktik esneklik ve oyuncu değeri yorumları için ayrı gözlem gerekir."
+            )
+        else:
+            dyad_bit = f"; most frequent same-process co-appearance {top_dyad_text}" if top_dyad_text else ""
+            text = (
+                f"Player process concentration — {team}, {family_label}: actor-annotation coverage {coverage}; "
+                f"{top_actor_display} appeared in {top_actor_n}/{observed_n} observable processes{dyad_bit}; scope is observable co-participation within the same process instance; "
+                "pass-relation, causal-collaboration, persistent-role, tactical-flexibility, and player-value interpretations require separate observation."
+            )
+        cards.append(text)
+    return cards
+
+def _human_residual_specialist_cards(
+    rich: dict[str, Any],
+    identity: dict[str, Any],
+    language: str,
+) -> list[str]:
+    """Render current rich-lane specialist syntheses that otherwise have no human consumer."""
+    teams = _human_team_labels(identity)
+    cards: list[str] = []
+
+    m01 = rich.get("m01_possession_construction_synthesis") or {}
+    m02 = rich.get("m02_progression_territory_synthesis") or {}
+    r01 = rich.get("r01_ball_progression_system_synthesis") or {}
+    if str(r01.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        m01_by_team = {
+            str(row.get("team_identity_candidate_id") or ""): row
+            for row in (m01.get("profiles") or []) if isinstance(row, dict)
+        }
+        m02_by_team = {
+            str(row.get("team_identity_candidate_id") or ""): row
+            for row in (m02.get("profiles") or []) if isinstance(row, dict)
+        }
+        for row in r01.get("profiles") or []:
+            if not isinstance(row, dict):
+                continue
+            team_id = str(row.get("team_identity_candidate_id") or "").strip()
+            if not team_id:
+                continue
+            name = teams.get(team_id, team_id)
+            construction = m01_by_team.get(team_id) or {}
+            progression = m02_by_team.get(team_id) or {}
+            sig_n = int(construction.get("eligible_process_signature_n") or progression.get("eligible_process_signature_n") or 0)
+            circulation_n = int(construction.get("visible_circulation_process_n") or 0)
+            gk_n = int(construction.get("goalkeeper_restart_context_n") or 0)
+            axis_n = int(progression.get("provider_attack_axis_delta_admitted_process_n") or 0)
+            end_counts = progression.get("visible_end_zone_candidate_counts") or {}
+            end_text = ", ".join(f"{_display_label(k)} {int(v or 0)}" for k, v in sorted(end_counts.items())) or ("çözümlenmedi" if language == "tr" else "unresolved")
+            if language == "tr":
+                cards.append(
+                    f"Kurulum/ilerleme bağlamı — {name}: {sig_n} süreç imzası; {circulation_n} görünür dolaşım süreci, "
+                    f"{gk_n} kaleci yeniden başlatma bağlamı ve {axis_n} hücum-ekseni bağlamlı süreç. "
+                    f"Görünür bitiş bölgesi adayları: {end_text}. Bu birleşik yüzey mevcut construction ve progression contextlerini tek inceleme kartında toplar."
+                )
+            else:
+                cards.append(
+                    f"Construction/progression context — {name}: {sig_n} admitted process signatures; {circulation_n} visible circulation processes, "
+                    f"{gk_n} goalkeeper-restart contexts and {axis_n} provider-attack-axis admitted processes. "
+                    f"Visible end-zone candidates: {end_text}. This combined surface binds existing construction and progression contexts into one review card."
+                )
+
+    m06 = rich.get("m06_transition_dynamics_synthesis") or {}
+    if str(m06.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        for row in m06.get("profiles") or []:
+            if not isinstance(row, dict):
+                continue
+            team_id = str(row.get("team_identity_candidate_id") or "").strip()
+            if not team_id:
+                continue
+            name = teams.get(team_id, team_id)
+            counter_n = int(row.get("counterattack_context_n") or 0)
+            to_pos_n = int(row.get("counter_to_positional_successor_candidate_n") or 0)
+            latency_n = int(row.get("counterattack_successor_latency_observed_n") or 0)
+            lo = row.get("counterattack_successor_latency_min_candidate")
+            hi = row.get("counterattack_successor_latency_max_candidate")
+            if language == "tr":
+                latency = f"{_human_number(lo)}–{_human_number(hi)} sn" if latency_n and lo is not None and hi is not None else "çözümlenmedi"
+                cards.append(
+                    f"Geçiş-devam bağlamı — {name}: {counter_n} kontra-atak bağlamının {to_pos_n} tanesinde sonraki tekil görünür süreç yerleşik hücum adayıydı; "
+                    f"{latency_n} örnekte sonraki görünür sürece süre aralığı {latency}. Bu yüzey görünür ardışıklığı özetler; transition-phase, momentum ve taktik adaptasyon yorumları ayrı observation gerektirir."
+                )
+            else:
+                latency = f"{_human_number(lo)}–{_human_number(hi)} s" if latency_n and lo is not None and hi is not None else "unresolved"
+                cards.append(
+                    f"Transition-continuation context — {name}: {to_pos_n} of {counter_n} counterattack contexts were followed by a single visible positional-attack candidate; "
+                    f"the next-visible-process latency range across {latency_n} observed examples was {latency}. This surface summarizes visible succession; transition-phase, momentum and tactical-adaptation interpretations require separate observations."
+                )
+
+    m07 = rich.get("m07_defensive_process_visible_exposure_response_synthesis") or {}
+    if str(m07.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        for row in m07.get("profiles") or []:
+            if not isinstance(row, dict):
+                continue
+            team_id = str(row.get("team_identity_candidate_id") or "").strip()
+            opp_id = str(row.get("opponent_team_identity_candidate_id") or "").strip()
+            if not team_id:
+                continue
+            name = teams.get(team_id, team_id)
+            opp = teams.get(opp_id, opp_id or ("rakip" if language == "tr" else "opponent"))
+            proc_n = int(row.get("opponent_visible_process_n") or 0)
+            shot_n = int(row.get("opponent_shot_ending_process_n") or 0)
+            loss_n = int(row.get("opponent_visible_loss_process_n") or 0)
+            if language == "tr":
+                cards.append(
+                    f"Savunma maruziyeti/yanıt bağlamı — {name}: {opp} için {proc_n} görünür süreç, {shot_n} şut-sonlanan süreç ve {loss_n} görünür kayıp süreci bağlandı. "
+                    "Kapsam event/process-visible maruziyet ve yanıttır; organize savunma şekli, compactness, pressure geometry, forced-turnover ve savunma başarısı yorumları ayrı observation gerektirir."
+                )
+            else:
+                cards.append(
+                    f"Defensive exposure/response context — {name}: {opp} was linked to {proc_n} visible processes, {shot_n} shot-ending processes and {loss_n} visible-loss processes. "
+                    "Scope is event/process-visible exposure and response; organized-defence shape, compactness, pressure geometry, forced-turnover and defensive-success interpretations require separate observations."
+                )
+
+    intervention = rich.get("visible_intervention_response_profile") or {}
+    if str(intervention.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        for row in intervention.get("rows") or []:
+            if not isinstance(row, dict):
+                continue
+            attacking_team = str(row.get("attacking_team_identity_candidate_id") or "").strip()
+            intervention_team = str(row.get("intervention_team_identity_candidate_id") or "").strip()
+            family = str(row.get("process_family_candidate") or "").strip()
+            if attacking_team and family:
+                grouped.setdefault((attacking_team, intervention_team, family), []).append(row)
+        for (attacking_team, intervention_team, family), rows in sorted(grouped.items()):
+            attack_name = teams.get(attacking_team, attacking_team)
+            defence_name = teams.get(intervention_team, intervention_team or ("rakip" if language == "tr" else "opponent"))
+            seconds = [float(row.get("seconds_to_first_visible_intervention_candidate")) for row in rows if isinstance(row.get("seconds_to_first_visible_intervention_candidate"), (int, float)) and not isinstance(row.get("seconds_to_first_visible_intervention_candidate"), bool)]
+            displacement = [float(row.get("provider_coordinate_displacement_candidate")) for row in rows if isinstance(row.get("provider_coordinate_displacement_candidate"), (int, float)) and not isinstance(row.get("provider_coordinate_displacement_candidate"), bool)]
+            families = Counter(
+                str(value)
+                for row in rows
+                for value in (row.get("intervention_action_family_candidates") or [])
+                if str(value)
+            )
+            followups = Counter(
+                str(row.get("intervention_followup_primary_consequence_candidate") or "UNRESOLVED")
+                for row in rows
+            )
+            second_text = (
+                f"{min(seconds):.1f}–{max(seconds):.1f} sn"
+                if seconds else ("çözümlenmedi" if language == "tr" else "unresolved")
+            )
+            displacement_text = (
+                f"{min(displacement):.1f}–{max(displacement):.1f} kaynak-koordinat birimi"
+                if displacement else ("çözümlenmedi" if language == "tr" else "unresolved")
+            )
+            family_text = ", ".join(
+                f"{_football_family_label(key, language)} {value}"
+                for key, value in sorted(families.items())
+            ) or ("çözümlenmedi" if language == "tr" else "unresolved")
+            followup_text = ", ".join(
+                f"{_display_label(key)} {value}"
+                for key, value in sorted(followups.items())
+            )
+            process_label = _football_family_label(family, language)
+            if language == "tr":
+                cards.append(
+                    f"Görünür müdahale-yanıt bağlamı — {attack_name}, {process_label}: {defence_name} tarafından {len(rows)} ilk tekil görünür müdahale; "
+                    f"müdahale aileleri {family_text}; ilk müdahaleye görünür süre {second_text}; kaynak koordinat ölçeğindeki yer değiştirme {displacement_text}; "
+                    f"müdahale sonrası ilk görünür durumlar {followup_text}. Kapsam görünür müdahale zamanı, kaynak-koordinat değişimi ve ilk görünür devamdır; fiziksel/taktik baskı, oyuncu hızı, hata nedeni ve savunma kalitesi yorumları için ayrı observation gerekir."
+                )
+            else:
+                cards.append(
+                    f"Visible intervention-response context — {attack_name}, {process_label}: {len(rows)} first single visible interventions by {defence_name}; "
+                    f"intervention families {family_text}; visible time to first intervention {second_text}; source-coordinate displacement {displacement_text}; "
+                    f"first visible post-intervention states {followup_text}. Scope is visible intervention timing, source-coordinate change and first visible continuation; physical/tactical pressure, player speed, error-cause and defensive-quality interpretations require separate observation."
+                )
+
+    gk = rich.get("goalkeeper_restart_consequence_context") or {}
+    if str(gk.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        by_team: dict[str, list[dict[str, Any]]] = {}
+        for row in gk.get("rows") or []:
+            if isinstance(row, dict):
+                tid = str(row.get("team_identity_candidate_id") or "").strip()
+                if tid:
+                    by_team.setdefault(tid, []).append(row)
+        for team_id, rows in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+            name = teams.get(team_id, team_id)
+            buckets = Counter(str(row.get("provider_distance_bucket_candidate") or "UNRESOLVED") for row in rows)
+            success_n = sum(str(row.get("pass_outcome_candidate") or "") == "SUCCESS" for row in rows)
+            next_families = Counter(
+                str(fam)
+                for row in rows
+                for fam in (row.get("next_visible_process_family_candidates") or [])
+                if str(fam)
+            )
+            bucket_text = ", ".join(f"{_display_label(k)} {v}" for k, v in sorted(buckets.items()))
+            next_text = ", ".join(f"{_football_family_label(k, language)} {v}" for k, v in sorted(next_families.items())) or ("tekil bağ yok" if language == "tr" else "no single binding")
+            if language == "tr":
+                cards.append(
+                    f"Kaleci yeniden başlatma bağlamı — {name}: {len(rows)} kale vuruşu başlangıç kaydı; mesafe sınıfları {bucket_text}; SUCCESS etiketi {success_n}/{len(rows)}; "
+                    f"ilk görünür sonraki süreç bağları {next_text}. Mesafe sınıfının fiziksel mesafe veya teknik plan yorumuna yükselmesi için ayrı observation gerekir."
+                )
+            else:
+                cards.append(
+                    f"Goalkeeper-restart context — {name}: {len(rows)} admitted goal-kick occurrences; provider distance buckets {bucket_text}; SUCCESS label {success_n}/{len(rows)}; "
+                    f"first-visible next-process bindings {next_text}. Provider buckets remain provider context rather than measured physical distance or tactical-plan truth."
+                )
+
+    game = rich.get("game_state_process_mix_context") or {}
+    if str(game.get("status") or "") in {"PASS", "REVIEW_REQUIRED"}:
+        by_team: dict[str, list[dict[str, Any]]] = {}
+        for row in game.get("profiles") or []:
+            if isinstance(row, dict):
+                tid = str(row.get("team_identity_candidate_id") or "").strip()
+                if tid:
+                    by_team.setdefault(tid, []).append(row)
+        for team_id, rows in sorted(by_team.items(), key=lambda item: teams.get(item[0], item[0])):
+            name = teams.get(team_id, team_id)
+            bits: list[str] = []
+            for row in rows[:4]:
+                score = _score_state_human(row.get("score_state_candidate"), language) or ("skor bağlamı" if language == "tr" else "score context")
+                counts = row.get("process_family_counts") or {}
+                mix = ", ".join(f"{_football_family_label(k, language)} {int(v or 0)}" for k, v in sorted(counts.items()) if int(v or 0) > 0) or ("0" if language == "tr" else "0")
+                bits.append(f"{score}: {mix}")
+            if bits:
+                if language == "tr":
+                    cards.append(f"Skor-durumu süreç karışımı — {name}: " + "; ".join(bits) + ". Payda ilgili skor segmentinin görünür zaman maruziyetidir; nedensel skor-durumu açıklaması için ayrı evidence gerekir.")
+                else:
+                    cards.append(f"Score-state process mix — {name}: " + "; ".join(bits) + ". The denominator is visible exposure time in the relevant score segment; score state is contextual rather than causal explanation.")
+
+    return cards
+
+
+def _human_fusion_relation_cards(full_spine: dict[str, Any], language: str) -> list[str]:
+    fusion_records: list[dict[str, Any]] = []
+    sidecar = full_spine.get("fusion_relation_review_records")
+    if isinstance(sidecar, list) and sidecar:
+        fusion_records = [row for row in sidecar if isinstance(row, dict)]
+    else:
+        chains = full_spine.get("intelligence_chains")
+        if isinstance(chains, list):
+            fusion_records = [
+                fusion
+                for chain in chains
+                if isinstance(chain, dict)
+                for fusion in [chain.get("fusion")]
+                if isinstance(fusion, dict)
+            ]
+    if not fusion_records:
+        return []
+    relation_counts: Counter[str] = Counter()
+    admitted_counter = unresolved_counter = independent = correlated = dependency_challenge = 0
+    fusion_n = 0
+    for fusion in fusion_records:
+        fusion_n += 1
+        relation_counts.update({str(k): int(v or 0) for k, v in (fusion.get("relation_counts") or {}).items()})
+        admitted_counter += int(fusion.get("admitted_counterevidence_count") or 0)
+        unresolved_counter += int(fusion.get("unresolved_counterevidence_count") or 0)
+        independent += int(fusion.get("independent_support_count") or 0)
+        correlated += int(fusion.get("correlated_or_unknown_support_count") or 0)
+        dependency_challenge += int(fusion.get("dependency_challenge_count") or 0)
+    if not fusion_n:
+        return []
+    rel = ", ".join(f"{k} {v}" for k, v in sorted(relation_counts.items()) if v) or "NONE"
+    if language == "tr":
+        return [
+            f"Kanıt ilişki özeti: {fusion_n} birleştirme kaydı; ilişkiler {rel}; doğrulanmış karşı-örnek {admitted_counter}, çözülmemiş karşı-örnek {unresolved_counter}, "
+            f"bağımlılık inceleme kaydı {dependency_challenge}, bağımsız destek {independent}, ilişkili veya bağımsızlığı belirsiz destek {correlated}. "
+            "Ham referans sayısı bağımsız destek sayılmaz; karşı-örnek sınıfı yalnız karşılaştırma uygunluğu ve bağımlılık koşullarıyla yükselir."
+        ]
+    return [
+        f"Evidence-relation summary: {fusion_n} fusion records; relations {rel}; admitted counterevidence {admitted_counter}, unresolved counterevidence {unresolved_counter}, "
+        f"dependency challenges {dependency_challenge}, independent support {independent}, correlated/unknown support {correlated}. "
+        "Nominal reference count is not used as independent-support count; counterevidence is promoted only through admitted comparison/dependency conditions."
+    ]
 
 def build_human_analyst_report_tr(
     output_root: str | Path,
@@ -4735,12 +5476,16 @@ def build_human_analyst_report_tr(
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "tr") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "tr") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "tr") if rich_current else []
+    route_breadth_cards = _human_process_route_breadth_cards(rich, identity, "tr") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "tr") if rich_current else []
     set_piece_cards = _human_set_piece_process_cards(rich, identity, "tr") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "tr") if rich_current else []
     opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "tr") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "tr") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "tr") if rich_current else []
+    specialist_cards = _human_residual_specialist_cards(rich, identity, "tr") if rich_current else []
+    actor_concentration_cards = _human_process_actor_concentration_cards(root, full_spine, identity, "tr")
+    fusion_relation_cards = _human_fusion_relation_cards(full_spine, "tr")
     mechanism_cards = _human_mechanism_cards(
         root,
         full_spine,
@@ -4794,6 +5539,11 @@ def build_human_analyst_report_tr(
         lines.extend(f"- {line}" for line in circulation_cards)
     else:
         lines.append("- Bu maçta güvenli biçimde raporlanabilir dolaşım-kader yüzeyi yok.")
+    lines.extend(["", "[3A] GÖRÜNÜR SÜREÇ ROTALARI"])
+    if route_breadth_cards:
+        lines.extend(f"- {line}" for line in route_breadth_cards)
+    else:
+        lines.append("- Bu maçta güvenli biçimde raporlanabilir görünür süreç rota-breadth yüzeyi yok.")
     lines.extend(["", "[4] HAVA TOPU → İLK GÖRÜNÜR DEVAM"])
     if aerial_cards:
         lines.extend(f"- {line}" for line in aerial_cards)
@@ -4839,6 +5589,18 @@ def build_human_analyst_report_tr(
         lines.extend(f"- {line}" for line in opponent_interaction_cards)
     else:
         lines.append("- Bu maçta M09 görünür takım-rakip etkileşim yüzeyi rapor kapsamına alınamadı.")
+    lines.extend(["", "[11A] BAĞLI UZMAN YÜZEYLER — CURRENT PRODUCER → ANALİST"])
+    if specialist_cards:
+        lines.extend(f"- {line}" for line in specialist_cards)
+    else:
+        lines.append("- Bu çalışmada ek specialist-synthesis kartı oluşmadı.")
+    if actor_concentration_cards:
+        lines.append("- Oyuncu katılım yoğunlaşması / birlikte-görünme incelemesi:")
+        lines.extend(f"  • {line}" for line in actor_concentration_cards)
+    if fusion_relation_cards:
+        lines.append("- Fusion / counterevidence / dependency özeti:")
+        lines.extend(f"  • {line}" for line in fusion_relation_cards)
+
     lines.extend(["", "[12] MEKANİZMA KARTLARI — ANA ADAYLAR VE SINIRLI KARŞILAŞTIRMALAR"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)
@@ -4884,12 +5646,17 @@ def build_human_analyst_report_en(
     score_state_cards = _human_score_state_process_outcome_cards(rich, identity, "en") if rich_current else []
     loss_recovery_score_state_cards = _human_loss_recovery_score_state_cards(rich, identity, "en") if rich_current else []
     circulation_cards = _human_circulation_fate_cards(rich, identity, "en") if rich_current else []
+    route_breadth_cards = _human_process_route_breadth_cards(rich, identity, "en") if rich_current else []
     aerial_cards = _human_aerial_duel_cards(rich, identity, "en") if rich_current else []
     set_piece_cards = _human_set_piece_process_cards(rich, identity, "en") if rich_current else []
     contest_cards = _human_process_contest_cards(rich, identity, "en") if rich_current else []
     opponent_interaction_cards = _human_opponent_interaction_cards(rich, identity, "en") if rich_current else []
     sequence_cards = _human_sequence_information_cards(rich, identity, "en") if rich_current else []
     process_variant_cards = _human_process_variant_board_cards(rich, identity, "en") if rich_current else []
+    specialist_cards = _human_residual_specialist_cards(rich, identity, "en") if rich_current else []
+    actor_concentration_cards = _human_process_actor_concentration_cards(root, full_spine, identity, "en")
+    dual_view_participant_cards = _human_dual_view_process_participant_cards(root, full_spine, identity, "en")
+    fusion_relation_cards = _human_fusion_relation_cards(full_spine, "en")
     mechanism_cards = _human_mechanism_cards(
         root,
         full_spine,
@@ -4943,6 +5710,11 @@ def build_human_analyst_report_en(
         lines.extend(f"- {line}" for line in circulation_cards)
     else:
         lines.append("- No safely reportable circulation-fate surface is available for this match.")
+    lines.extend(["", "[3A] VISIBLE PROCESS ROUTES"])
+    if route_breadth_cards:
+        lines.extend(f"- {line}" for line in route_breadth_cards)
+    else:
+        lines.append("- No safely reportable visible process route-breadth surface is available for this match.")
     lines.extend(["", "[4] AERIAL DUEL → FIRST VISIBLE CONTINUATION"])
     if aerial_cards:
         lines.extend(f"- {line}" for line in aerial_cards)
@@ -4978,6 +5750,9 @@ def build_human_analyst_report_en(
     if player_mechanism_link_cards:
         lines.append("- Source-bound player ↔ mechanism links:")
         lines.extend(f"  • {line}" for line in player_mechanism_link_cards)
+    if dual_view_participant_cards:
+        lines.extend(["", "[9A] PLAYER PARTICIPATION VIEWS — OCCURRENCE ↔ PROVIDER"])
+        lines.extend(f"- {line}" for line in dual_view_participant_cards)
     lines.extend(["", "[10] 12-DIRECTION POSTMATCH — 6 PHASES × 2 TEAMS"])
     if contest_cards:
         lines.extend(f"- {line}" for line in contest_cards)
@@ -4988,6 +5763,18 @@ def build_human_analyst_report_en(
         lines.extend(f"- {line}" for line in opponent_interaction_cards)
     else:
         lines.append("- The M09 visible team-opponent interaction surface was not admitted into this report run.")
+    lines.extend(["", "[11A] CONNECTED SPECIALIST SURFACES — CURRENT PRODUCER → ANALYST"])
+    if specialist_cards:
+        lines.extend(f"- {line}" for line in specialist_cards)
+    else:
+        lines.append("- No additional specialist-synthesis card is available in this run.")
+    if actor_concentration_cards:
+        lines.append("- Player participation concentration / co-appearance review:")
+        lines.extend(f"  • {line}" for line in actor_concentration_cards)
+    if fusion_relation_cards:
+        lines.append("- Fusion / counterevidence / dependency summary:")
+        lines.extend(f"  • {line}" for line in fusion_relation_cards)
+
     lines.extend(["", "[12] MECHANISM CARDS — MAIN CANDIDATES AND LIMITED COMPARISONS"])
     if mechanism_cards:
         lines.extend(f"- {line}" for line in mechanism_cards)

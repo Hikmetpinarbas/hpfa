@@ -96,3 +96,48 @@ def test_duplicate_participation_rows_do_not_inflate_counts():
 
     assert p1[0]["visible_process_participation_n"] == 1
     assert result["zero_participation_is_non_participation_truth"] is False
+
+def test_multi_score_state_player_gets_match_local_function_review_contract():
+    payload = {
+        "process_participation_candidates": [
+            context("POSITIONAL_ATTACK_CANDIDATE", 100, True),
+            participant("P1", "POSITIONAL_ATTACK_CANDIDATE", 100),
+            context("COUNTERATTACK_CANDIDATE", 700),
+            participant("P1", "COUNTERATTACK_CANDIDATE", 700),
+        ]
+    }
+    result = build_player_score_state_process_participation(GAME_STATE, IDENTITY, payload)
+
+    reviews = result["function_hypothesis_review_candidates"]
+    review = next(r for r in reviews if r["actor_identity_candidate_id"] == "P1")
+
+    assert review["review_state"] == "MATCH_LOCAL_FUNCTION_CONTEXT_VARIATION_REVIEW_CANDIDATE"
+    assert review["observed_score_state_context_n"] == 2
+    assert review["observed_process_family_n"] == 2
+    assert review["process_mix_varies_across_observed_score_states"] is True
+    assert review["creates_new_evidence"] is False
+    assert review["can_authorize_player_value_claim"] is False
+    assert review["stable_role_truth"] is False
+    assert review["causal_contribution_truth"] is False
+    assert review["off_ball_role_truth"] is False
+    assert review["counter_scenario_candidates"]
+    assert review["hypothesis_falsifier_conditions"]
+    assert review["invalidation_conditions"]
+    assert review["falsifier_is_invalidator"] is False
+    assert review["absence_is_falsifier"] is False
+    assert review["withdrawal_conditions"]
+    assert review["claim_ceiling"] == "MATCH_LOCAL_CONTEXT_CONDITIONED_PLAYER_FUNCTION_REVIEW_CANDIDATE_ONLY"
+
+
+def test_single_score_state_player_does_not_get_variation_review_candidate():
+    payload = {
+        "process_participation_candidates": [
+            context("POSITIONAL_ATTACK_CANDIDATE", 100, True),
+            participant("P1", "POSITIONAL_ATTACK_CANDIDATE", 100),
+        ]
+    }
+    result = build_player_score_state_process_participation(GAME_STATE, IDENTITY, payload)
+    review = next(r for r in result["function_hypothesis_review_candidates"] if r["actor_identity_candidate_id"] == "P1")
+    assert review["review_state"] == "INSUFFICIENT_MULTI_CONTEXT_VARIATION_FOR_REVIEW"
+    assert review["process_mix_varies_across_observed_score_states"] is False
+

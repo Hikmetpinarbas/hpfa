@@ -288,8 +288,35 @@ def _admission_gated_full_spine_for_user_outputs(
     if allowed and engineering.get("current_c4_producers_reused") is not True:
         return {"status": "FAIL_CLOSED", "reason": "professional_emit_without_current_c4_surface"}
 
+    fusion_review_fields = (
+        "fusion_id",
+        "fusion_status",
+        "relation_counts",
+        "admitted_counterevidence_count",
+        "unresolved_counterevidence_count",
+        "independent_support_count",
+        "correlated_or_unknown_support_count",
+        "dependency_challenge_count",
+        "claim_ceiling",
+        "nominal_ref_count_is_independent_support_count",
+    )
+    fusion_relation_review_records: list[dict[str, Any]] = []
+    for chain in full_spine.get("intelligence_chains") or []:
+        if not isinstance(chain, dict):
+            continue
+        fusion = chain.get("fusion")
+        if not isinstance(fusion, dict):
+            continue
+        review_record = {key: fusion.get(key) for key in fusion_review_fields if key in fusion}
+        if review_record:
+            fusion_relation_review_records.append(review_record)
+
     gated = dict(full_spine)
     gated["engineering_evidence"] = engineering
+    gated["fusion_relation_review_records"] = fusion_relation_review_records
+    gated["fusion_relation_review_record_count"] = len(fusion_relation_review_records)
+    gated["fusion_relation_review_records_create_claim_authority"] = False
+    gated["fusion_relation_review_records_create_independent_support"] = False
     gated["intelligence_chains"] = [
         {
             "source_safe_finding_handoff_ref": ref,

@@ -41,6 +41,7 @@ PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v
 OCCURRENCE_STATE_TRANSITION_JSON = "occurrence_state_transition_projection_v1.json"
 SPATIAL_TRANSITION_JSON = "spatial_transition_candidate_lite_v1.json"
 OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
+TRACKABLE_CONSEQUENCE_JSON = "trackable_action_consequence_candidates_lite_v1.json"
 ACTION_OCCURRENCE_JSON = "action_occurrence_admission_lite_v1.json"
 TRACKABLE_TRACE_JSON = "trackable_action_trace_candidates_lite_v1.json"
 
@@ -2759,6 +2760,51 @@ def _construct_c02(
             "dyad_candidate_count": len(dyad_candidates),
         })
 
+    # Search-space and dependency anatomy: these fields describe how the
+    # match-local actor/dyad grid was generated and where target episodes are
+    # reused across dyads. They do not create additional evidence or stability.
+    for candidate in all_dyad_candidates:
+        target_process_refs = {
+            str(value) for value in (candidate.get("shot_process_refs") or []) if str(value)
+        }
+        target_episode_refs = {
+            str(value) for value in (candidate.get("positive_episode_refs") or []) if str(value)
+        }
+        other_target_process_refs: set[str] = set()
+        other_target_episode_refs: set[str] = set()
+        overlapping_dyad_candidate_count = 0
+        for other in all_dyad_candidates:
+            if other is candidate:
+                continue
+            other_processes = {
+                str(value) for value in (other.get("shot_process_refs") or []) if str(value)
+            }
+            other_episodes = {
+                str(value) for value in (other.get("positive_episode_refs") or []) if str(value)
+            }
+            if target_process_refs & other_processes or target_episode_refs & other_episodes:
+                overlapping_dyad_candidate_count += 1
+            other_target_process_refs.update(other_processes)
+            other_target_episode_refs.update(other_episodes)
+        shared_process_refs = sorted(target_process_refs & other_target_process_refs)
+        unique_process_refs = sorted(target_process_refs - other_target_process_refs)
+        shared_episode_refs = sorted(target_episode_refs & other_target_episode_refs)
+        candidate["target_process_refs_shared_with_other_dyads"] = shared_process_refs
+        candidate["target_process_ref_overlap_count_with_other_dyads"] = len(shared_process_refs)
+        candidate["unique_to_this_dyad_target_process_refs"] = unique_process_refs
+        candidate["unique_to_this_dyad_target_process_ref_count"] = len(unique_process_refs)
+        candidate["target_episode_refs_shared_with_other_dyads"] = shared_episode_refs
+        candidate["target_episode_ref_overlap_count_with_other_dyads"] = len(shared_episode_refs)
+        candidate["overlapping_dyad_candidate_count"] = overlapping_dyad_candidate_count
+        candidate["repeated_episode_burden_state"] = (
+            "SHARED_TARGET_EPISODE_REUSE_PRESENT"
+            if shared_episode_refs
+            else "NO_SHARED_TARGET_EPISODE_REUSE_OBSERVED"
+        )
+        candidate["dyad_overlap_is_independent_support"] = False
+        candidate["shared_target_episode_is_recurrence_truth"] = False
+        candidate["shared_target_episode_is_pair_specific_surplus"] = False
+
     def priority(row: dict[str, Any]) -> tuple[Any, ...]:
         lift = row.get("match_local_lift")
         return (
@@ -2839,6 +2885,13 @@ def _construct_c02(
         "epistemic_review_contract_can_authorize_emit": False,
         "selection_scope_actor_candidate_count": len(all_actor_candidates),
         "selection_scope_dyad_candidate_count": len(all_dyad_candidates),
+        "candidate_generation_state": "POSTHOC_EXHAUSTIVE_MATCH_LOCAL_ACTOR_DYAD_GRID",
+        "family_search_space_n": len(family_profiles),
+        "actor_candidate_search_space_n": len(all_actor_candidates),
+        "dyad_candidate_search_space_n": len(all_dyad_candidates),
+        "selection_bias_state": "POSTHOC_ATTENTION_SELECTION_REVIEW_REQUIRED",
+        "candidate_search_space_is_independent_support": False,
+        "candidate_search_space_is_population_inference": False,
         "selection_is_posthoc_attention_ranking": True,
         "no_p_value_eliminates_selection_multiplicity_risk": False,
         "ranked_extreme_is_stable_signal": False,
@@ -2859,6 +2912,131 @@ def _as_number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
 
+
+
+def _visible_intervention_response_profile(
+    occurrence_consequence_payload: dict[str, Any],
+    trackable_trace_payload: dict[str, Any],
+    c03: dict[str, Any],
+) -> dict[str, Any]:
+    """Describe the first admitted visible opponent intervention within a process.
+
+    This is event/process-derived context only. Provider coordinate displacement stays
+    provider-coordinate context. Pressure intensity, closing speed, error causation,
+    defensive quality, physical distance, and causality require separate observation.
+    """
+    intervention_families = {"TACKLE", "INTERCEPTION", "BLOCK", "CLEARANCE"}
+    traces = {
+        str(row.get("trackable_action_trace_candidate_id") or ""): row
+        for row in (trackable_trace_payload.get("trackable_action_trace_candidates") or [])
+        if isinstance(row, dict) and row.get("trackable_action_trace_candidate_id")
+    }
+    consequences = [
+        row for row in (occurrence_consequence_payload.get("trackable_action_consequence_candidates") or [])
+        if isinstance(row, dict)
+    ]
+    consequence_by_anchor = {
+        str(row.get("anchor_trackable_action_trace_candidate_id") or ""): row
+        for row in consequences
+        if row.get("anchor_trackable_action_trace_candidate_id")
+    }
+    signatures = [row for row in (c03.get("signatures") or []) if isinstance(row, dict)]
+    rows: list[dict[str, Any]] = []
+
+    for consequence in consequences:
+        if str(consequence.get("first_eligible_consequence_binding_state") or "") != "SINGLE_FIRST_ELIGIBLE_FOLLOWUP":
+            continue
+        if str(consequence.get("first_eligible_team_relation") or "") != "OPPONENT":
+            continue
+        first_families = sorted({
+            str(value) for value in (consequence.get("first_eligible_action_family_candidates") or []) if value
+        })
+        if not (set(first_families) & intervention_families):
+            continue
+        followup_refs = [
+            str(value) for value in (consequence.get("first_eligible_follow_up_trace_ids") or []) if value
+        ]
+        if len(followup_refs) != 1:
+            continue
+        anchor_ref = str(consequence.get("anchor_trackable_action_trace_candidate_id") or "")
+        intervention_ref = followup_refs[0]
+        anchor = traces.get(anchor_ref)
+        intervention = traces.get(intervention_ref)
+        if not anchor or not intervention:
+            continue
+        attacking_team = str(consequence.get("team_identity_candidate_id") or anchor.get("team_identity_candidate_id") or "")
+        intervention_team = str(intervention.get("team_identity_candidate_id") or "")
+        period = str(consequence.get("period_candidate") or anchor.get("period_candidate") or "")
+        anchor_time = _as_number(anchor.get("start_candidate"))
+        if anchor_time is None:
+            continue
+        matching = []
+        for signature in signatures:
+            if str(signature.get("team_identity_candidate_id") or "") != attacking_team:
+                continue
+            if str(signature.get("period_candidate") or "") != period:
+                continue
+            start = _as_number(signature.get("process_start_candidate"))
+            end = _as_number(signature.get("process_end_candidate"))
+            if start is None or end is None or not (start <= anchor_time <= end):
+                continue
+            matching.append(signature)
+        if not matching:
+            continue
+        signature = min(
+            matching,
+            key=lambda row: (
+                (_as_number(row.get("process_end_candidate")) or anchor_time)
+                - (_as_number(row.get("process_start_candidate")) or anchor_time),
+                str(row.get("process_development_signature_id") or ""),
+            ),
+        )
+
+        seconds = _as_number(consequence.get("time_to_first_admitted_visible_state_change_seconds_candidate"))
+        if seconds is None:
+            intervention_time = _as_number(intervention.get("start_candidate"))
+            seconds = intervention_time - anchor_time if intervention_time is not None else None
+        ax = _as_number(anchor.get("pos_x_candidate")); ay = _as_number(anchor.get("pos_y_candidate"))
+        ix = _as_number(intervention.get("pos_x_candidate")); iy = _as_number(intervention.get("pos_y_candidate"))
+        displacement = None
+        if None not in {ax, ay, ix, iy}:
+            displacement = ((ix - ax) ** 2 + (iy - ay) ** 2) ** 0.5
+        intervention_followup = consequence_by_anchor.get(intervention_ref) or {}
+        rows.append({
+            "process_development_signature_id": signature.get("process_development_signature_id"),
+            "process_family_candidate": signature.get("process_family_candidate"),
+            "attacking_team_identity_candidate_id": attacking_team,
+            "intervention_team_identity_candidate_id": intervention_team,
+            "period_candidate": period,
+            "anchor_trackable_action_trace_candidate_id": anchor_ref,
+            "intervention_trackable_action_trace_candidate_id": intervention_ref,
+            "intervention_action_family_candidates": sorted(set(first_families) & intervention_families),
+            "seconds_to_first_visible_intervention_candidate": seconds,
+            "provider_coordinate_displacement_candidate": displacement,
+            "intervention_followup_primary_consequence_candidate": intervention_followup.get("primary_consequence_candidate"),
+            "provider_coordinate_displacement_is_physical_distance": False,
+            "visible_intervention_is_pressure_intensity_truth": False,
+            "visible_intervention_is_closing_speed_truth": False,
+            "visible_intervention_is_forced_error_truth": False,
+            "visible_intervention_is_defensive_success_truth": False,
+            "visible_intervention_is_causal_truth": False,
+            "creates_independent_support": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_INTERVENTION_RESPONSE_CONTEXT_ONLY",
+        })
+
+    return {
+        "status": "PASS" if rows else "NOT_AVAILABLE",
+        "rows": rows,
+        "row_count": len(rows),
+        "intervention_action_families": sorted(intervention_families),
+        "provider_coordinate_displacement_is_physical_distance": False,
+        "visible_intervention_is_pressure_intensity_truth": False,
+        "visible_intervention_is_closing_speed_truth": False,
+        "visible_intervention_is_forced_error_truth": False,
+        "visible_intervention_is_defensive_success_truth": False,
+        "creates_independent_support": False,
+        "claim_ceiling": "MATCH_LOCAL_VISIBLE_INTERVENTION_RESPONSE_CONTEXT_ONLY",
+    }
 
 def _strict_post_final_third_entry_profile(layers: list[dict[str, Any]]) -> dict[str, Any]:
     """Keep only activity strictly after a newly visible FINAL_THIRD access layer.
@@ -3271,6 +3449,73 @@ def _construct_c03(
             if layer_unresolved:
                 unresolved_actor_family_layer_n += 1
 
+        actor_location_eligible_families = {"CARRY", "DRIBBLE", "SHOT", "DUEL", "TACKLE", "RECOVERY"}
+        actor_location_points: dict[str, list[tuple[float, float, tuple[str, ...]]]] = defaultdict(list)
+        actor_location_eligible_temporal_layer_n = 0
+        pass_only_temporal_layer_excluded_n = 0
+        for layer in layers:
+            actors = [str(value) for value in (layer.get("actor_identity_candidate_ids") or []) if value]
+            families = {str(value) for value in (layer.get("action_family_candidates") or []) if value}
+            anchors = [
+                anchor for anchor in (layer.get("admitted_annotation_anchor_candidates") or [])
+                if isinstance(anchor, dict)
+            ]
+            if len(actors) != 1 or len(anchors) != 1:
+                continue
+            if families and families.issubset({"PASS"}):
+                pass_only_temporal_layer_excluded_n += 1
+                continue
+            if not actor_location_eligible_families.intersection(families):
+                continue
+            x = _as_number(anchors[0].get("x"))
+            y = _as_number(anchors[0].get("y"))
+            if x is None or y is None:
+                continue
+            actor_location_eligible_temporal_layer_n += 1
+            zones = tuple(sorted({
+                str(value) for value in (layer.get("provider_zone_candidates") or []) if value
+            }))
+            actor_location_points[actors[0]].append((x, y, zones))
+
+        def _median_candidate(values: list[float]) -> float | None:
+            if not values:
+                return None
+            ordered = sorted(values)
+            n = len(ordered)
+            middle = n // 2
+            if n % 2:
+                return float(ordered[middle])
+            return float((ordered[middle - 1] + ordered[middle]) / 2.0)
+
+        actor_location_profiles: list[dict[str, Any]] = []
+        for actor_id, points in sorted(actor_location_points.items()):
+            zone_counts: Counter[str] = Counter()
+            for _, _, zones in points:
+                zone_counts.update(zones)
+            actor_location_profiles.append({
+                "actor_identity_candidate_id": actor_id,
+                "eligible_temporal_layer_n": len(points),
+                "anchor_observation_n": len(points),
+                "median_anchor_x_provider_units_candidate": _median_candidate([point[0] for point in points]),
+                "median_anchor_y_provider_units_candidate": _median_candidate([point[1] for point in points]),
+                "provider_zone_layer_counts": dict(sorted(zone_counts.items())),
+                "actor_location_is_average_position_truth": False,
+                "actor_location_is_tracking_truth": False,
+            })
+
+        visible_actor_location_participation_proxy = {
+            "eligible_action_family_basis": sorted(actor_location_eligible_families),
+            "eligible_temporal_layer_n": actor_location_eligible_temporal_layer_n,
+            "pass_only_temporal_layer_excluded_n": pass_only_temporal_layer_excluded_n,
+            "profiles": actor_location_profiles,
+            "coordinate_is_tracking_truth": False,
+            "coordinate_is_average_position_truth": False,
+            "pass_coordinate_used_as_actor_location": False,
+            "off_ball_location_truth": False,
+            "team_shape_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_ACTOR_LOCATION_PARTICIPATION_PROXY_ONLY",
+        }
+
         on_ball_profile = {
             "visible_on_ball_temporal_layer_n": len(on_ball_layers),
             "visible_on_ball_family_layer_counts": on_ball_family_layer_counts,
@@ -3338,6 +3583,7 @@ def _construct_c03(
             "action_family_layer_counts": dict(sorted(action_family_layer_counts.items())),
             "pass_carry_layer_mix": pass_carry_mix,
             "visible_on_ball_profile": on_ball_profile,
+            "visible_actor_location_participation_proxy": visible_actor_location_participation_proxy,
             "semantic_facet_profile": {
                 "progression_layer_counts": dict(sorted(progression_layer_counts.items())),
                 "direction_layer_counts": dict(sorted(direction_layer_counts.items())),
@@ -3718,6 +3964,164 @@ def _construct_c03(
                     "claim_ceiling": "MATCH_LOCAL_VISIBLE_PROCESS_MORPHOLOGY_NEIGHBOR_CANDIDATE_ONLY",
                 })
 
+    def _aggregate_actor_location_context(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        actor_process_presence_counts: Counter[str] = Counter()
+        actor_anchor_observation_counts: Counter[str] = Counter()
+        actor_consequence_process_presence_counts: dict[str, Counter[str]] = defaultdict(Counter)
+        actor_shot_ending_location_process_counts: Counter[str] = Counter()
+        actor_non_shot_location_process_counts: Counter[str] = Counter()
+        zone_layer_counts: Counter[str] = Counter()
+        observable_process_n = 0
+        eligible_layer_n = 0
+        pass_only_excluded_n = 0
+        for row in rows:
+            proxy = row.get("visible_actor_location_participation_proxy") or {}
+            row_eligible = int(proxy.get("eligible_temporal_layer_n") or 0)
+            eligible_layer_n += row_eligible
+            pass_only_excluded_n += int(proxy.get("pass_only_temporal_layer_excluded_n") or 0)
+            profiles = [item for item in (proxy.get("profiles") or []) if isinstance(item, dict)]
+            if row_eligible > 0 and profiles:
+                observable_process_n += 1
+            seen_actors: set[str] = set()
+            row_consequences = {
+                str(value) for value in (row.get("primary_consequence_candidates_observed") or [])
+                if str(value)
+            }
+            row_is_shot_ending = row.get("shot_present_annotation_candidate") is True
+            for profile in profiles:
+                actor_id = str(profile.get("actor_identity_candidate_id") or "").strip()
+                if not actor_id:
+                    continue
+                if actor_id not in seen_actors:
+                    actor_process_presence_counts[actor_id] += 1
+                    if row_is_shot_ending:
+                        actor_shot_ending_location_process_counts[actor_id] += 1
+                    else:
+                        actor_non_shot_location_process_counts[actor_id] += 1
+                    for consequence in row_consequences:
+                        actor_consequence_process_presence_counts[actor_id][consequence] += 1
+                    seen_actors.add(actor_id)
+                actor_anchor_observation_counts[actor_id] += int(profile.get("anchor_observation_n") or 0)
+                for zone, count in (profile.get("provider_zone_layer_counts") or {}).items():
+                    zone_layer_counts[str(zone)] += int(count or 0)
+        eligible_process_n = len(rows)
+        actor_location_actor_profiles = []
+        actor_location_actor_consequence_context_profiles = []
+        for actor_id in sorted(actor_process_presence_counts):
+            presence_n = int(actor_process_presence_counts[actor_id])
+            actor_location_actor_profiles.append({
+                "actor_identity_candidate_id": actor_id,
+                "visible_process_presence_n": presence_n,
+                "visible_process_presence_rate_among_location_observable_processes": (
+                    presence_n / observable_process_n if observable_process_n else None
+                ),
+                "anchor_observation_n": int(actor_anchor_observation_counts.get(actor_id) or 0),
+                "visible_process_spread_is_recurrence_truth": False,
+                "visible_process_spread_is_independent_support": False,
+                "visible_process_spread_is_stable_role_truth": False,
+                "visible_process_spread_is_player_importance_truth": False,
+            })
+            consequence_counts = dict(sorted(
+                actor_consequence_process_presence_counts.get(actor_id, Counter()).items()
+            ))
+            same_team_continuation_n = int(
+                consequence_counts.get("SAME_TEAM_CONTINUATION_CANDIDATE") or 0
+            )
+            opponent_response_n = sum(
+                int(consequence_counts.get(key) or 0)
+                for key in (
+                    "OPPONENT_HANDOVER_CANDIDATE",
+                    "OPPONENT_TAKEOVER_AFTER_BREAKDOWN_CANDIDATE",
+                )
+            )
+            mixed_visible_context = same_team_continuation_n > 0 and opponent_response_n > 0
+            actor_context_challenge_contract = {
+                "observed_variation_state": (
+                    "MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT"
+                    if mixed_visible_context
+                    else "NO_MIXED_VISIBLE_CONTINUATION_AND_OPPONENT_RESPONSE_CONTEXT"
+                ),
+                "counterevidence_state": "UNRESOLVED_NO_EXPLICIT_TARGET_CLAIM",
+                "challenge_type_candidate": (
+                    "UNDERCUT_CANDIDATE" if mixed_visible_context else "NOT_APPLICABLE"
+                ),
+                "typed_defeat_type_candidate": (
+                    "UNDERCUT" if mixed_visible_context else "NOT_APPLICABLE"
+                ),
+                "challenge_scope_candidate": (
+                    "VISIBLE_OUTCOME_STABILITY_LINK" if mixed_visible_context else "NOT_APPLICABLE"
+                ),
+                "target_component_candidate": (
+                    "PLAYER_OUTCOME_STABILITY_WARRANT" if mixed_visible_context else None
+                ),
+                "target_component_type_candidate": (
+                    "INFERENCE_WARRANT" if mixed_visible_context else "NOT_APPLICABLE"
+                ),
+                "target_component_ref_candidate": (
+                    "PLAYER_OUTCOME_STABILITY_WARRANT" if mixed_visible_context else None
+                ),
+                "target_claim_component_bound": False,
+                "typed_defeat_admitted": False,
+                "counterevidence_target_binding_state": (
+                    "UNRESOLVED_NO_EXPLICIT_TARGET_CLAIM_COMPONENT"
+                    if mixed_visible_context
+                    else "NOT_APPLICABLE_NO_OBSERVED_VARIATION_CHALLENGE"
+                ),
+                "variation_can_challenge_uniform_outcome_hypothesis": mixed_visible_context,
+                "variation_is_counterevidence_truth": False,
+                "variation_is_causal_refutation": False,
+                "variation_creates_independent_support": False,
+                "variation_can_authorize_emit": False,
+                "variation_can_strengthen_claim_ceiling": False,
+                "withdrawal_condition_candidates": (
+                    ["QUALIFY_OR_WITHDRAW_IF_PLAYER_NARRATIVE_REQUIRES_UNIFORM_VISIBLE_OUTCOME"]
+                    if mixed_visible_context
+                    else []
+                ),
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_ACTOR_CONTEXT_CHALLENGE_ONLY",
+            }
+            actor_location_actor_consequence_context_profiles.append({
+                "actor_identity_candidate_id": actor_id,
+                "actor_location_observable_process_n": presence_n,
+                "shot_ending_actor_location_process_n": int(
+                    actor_shot_ending_location_process_counts.get(actor_id) or 0
+                ),
+                "non_shot_actor_location_process_n": int(
+                    actor_non_shot_location_process_counts.get(actor_id) or 0
+                ),
+                "consequence_process_presence_counts": consequence_counts,
+                "actor_context_challenge_contract": actor_context_challenge_contract,
+                "consequence_counts_are_process_presence_not_occurrence_volume": True,
+                "actor_caused_consequence_truth": False,
+                "actor_induced_opponent_response_truth": False,
+                "actor_consequence_context_is_causal_contribution_truth": False,
+                "actor_consequence_context_creates_independent_support": False,
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_ACTOR_CONSEQUENCE_CONTEXT_ONLY",
+            })
+        return {
+            "eligible_process_n": eligible_process_n,
+            "actor_location_observable_process_n": observable_process_n,
+            "actor_location_observation_coverage_rate": (
+                observable_process_n / eligible_process_n if eligible_process_n else None
+            ),
+            "eligible_location_temporal_layer_n": eligible_layer_n,
+            "pass_only_temporal_layer_excluded_n": pass_only_excluded_n,
+            "actor_process_presence_counts": dict(sorted(actor_process_presence_counts.items())),
+            "actor_anchor_observation_counts": dict(sorted(actor_anchor_observation_counts.items())),
+            "actor_location_actor_profiles": actor_location_actor_profiles,
+            "actor_location_actor_consequence_context_profiles": actor_location_actor_consequence_context_profiles,
+            "provider_zone_layer_counts": dict(sorted(zone_layer_counts.items())),
+            "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
+            "actor_process_presence_is_action_volume_truth": False,
+            "coordinate_is_average_position_truth": False,
+            "coordinate_is_tracking_truth": False,
+            "pass_coordinate_used_as_actor_location": False,
+            "profile_creates_independent_support": False,
+            "profile_is_team_shape_truth": False,
+            "profile_is_off_ball_location_truth": False,
+            "claim_ceiling": "MATCH_LOCAL_VISIBLE_ACTOR_LOCATION_PARTICIPATION_PROFILE_ONLY",
+        }
+
     team_process_profiles: list[dict[str, Any]] = []
     by_team_family: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for signature in signatures:
@@ -3786,6 +4190,7 @@ def _construct_c03(
             "visible_recovery_process_n": recovery_n,
             "visible_recovery_share_candidate": recovery_n / len(team_rows),
             "visible_consequence_response_profile": visible_consequence_response_profile,
+            "visible_actor_location_participation_profile": _aggregate_actor_location_context(team_rows),
             "mean_actor_spread_candidate": (sum(actor_values) / len(actor_values)) if actor_values else None,
             "mean_temporal_layer_n": (sum(layer_values) / len(layer_values)) if layer_values else None,
             "denominator_basis": "MATCH_LOCAL_ADMITTED_PROCESS_FAMILY_INTERVALS_FOR_TEAM",
@@ -3997,6 +4402,11 @@ def _construct_c03(
             "non_shot_visible_loss_n": sum(bool(row.get("visible_loss_transition_candidate_present")) for row in non_shot_rows),
             "shot_ending_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in shot_rows),
             "non_shot_visible_recovery_n": sum(bool(row.get("visible_recovery_transition_candidate_present")) for row in non_shot_rows),
+            "shot_ending_actor_location_context": _aggregate_actor_location_context(shot_rows),
+            "non_shot_actor_location_context": _aggregate_actor_location_context(non_shot_rows),
+            "actor_location_context_participates_in_variant_identity": False,
+            "actor_location_difference_is_causal_truth": False,
+            "actor_location_difference_is_tactical_mechanism_truth": False,
             "comparison_basis": "SAME_TEAM_SAME_PROCESS_FAMILY_SHOT_ENDING_VS_NON_SHOT_VISIBLE_VARIANTS",
             "cross_team_variant_pooling_allowed": False,
             "comparison_is_descriptive_not_causal": True,
@@ -5288,6 +5698,7 @@ def run_rich_lane(
 
     occurrence_transition_payload = _load_json(output / OCCURRENCE_STATE_TRANSITION_JSON)
     occurrence_consequence_payload = _load_json(output / OCCURRENCE_CONSEQUENCE_JSON)
+    trackable_consequence_payload = _load_json(output / TRACKABLE_CONSEQUENCE_JSON)
     action_occurrence_payload = _load_json(output / ACTION_OCCURRENCE_JSON)
     c02 = _bind_player_action_aggregate_context(c02, action_occurrence_payload)
     if c02.get("status") == "REVIEW_REQUIRED":
@@ -5338,6 +5749,11 @@ def run_rich_lane(
         c03.get("signatures") or [],
         c03.get("process_motif_family_candidates") or [],
         c03.get("process_variant_board") or {},
+    )
+    visible_intervention_response_profile = _visible_intervention_response_profile(
+        trackable_consequence_payload,
+        trackable_trace_payload,
+        c03,
     )
     m09_opponent_interaction_synthesis = _m09_opponent_interaction_synthesis(c03)
     score_state_visible_process_outcome_context = build_score_state_visible_process_outcome_context(
@@ -5406,6 +5822,7 @@ def run_rich_lane(
         "time_window_process_mix_change_context": time_window_process_mix_change_context,
         "score_state_visible_process_outcome_context": score_state_visible_process_outcome_context,
         "m09_opponent_interaction_synthesis": m09_opponent_interaction_synthesis,
+        "visible_intervention_response_profile": visible_intervention_response_profile,
         "m07_defensive_process_visible_exposure_response_synthesis": m07_defensive_process_visible_exposure_response_synthesis,
         "visible_process_route_breadth_profile": visible_process_route_breadth_profile,
         "m02_progression_territory_synthesis": m02_progression_territory_synthesis,

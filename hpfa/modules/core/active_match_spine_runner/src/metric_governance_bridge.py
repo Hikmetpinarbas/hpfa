@@ -8,10 +8,12 @@ from hpfa.modules.core.aggregate_definition_alignment_lite.src.aggregate_definit
 from hpfa.modules.core.metric_definition_policy_lite.src.metric_definition_policy import load_policy_pack
 from hpfa.modules.core.provider_metric_dictionary_lite.src.provider_metric_dictionary import load_dictionary_pack
 from hpfa.modules.core.active_match_spine_runner.src.metric_anatomy_bridge import write_metric_anatomy
+from hpfa.modules.core.metric_governance_lite.src.metric_candidate_governance_validator import build_metric_candidate_governance
 
 MODULE_ID = "active_match_metric_governance_bridge_v1"
 OUTPUT_JSON = "active_match_metric_governance_bridge_v1.json"
 OUTPUT_TXT = "active_match_metric_governance_bridge_v1.txt"
+METRIC_CANDIDATE_GOVERNANCE_JSON = "metric_candidate_governance_lite_v1.json"
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -48,6 +50,39 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
 
     hard_blocks: list[str] = []
     review_hits: list[str] = []
+
+    try:
+        metric_candidate_governance = build_metric_candidate_governance()
+        metric_candidate_governance_status = _status(metric_candidate_governance.get("status"))
+        metric_candidate_governance_path = output / METRIC_CANDIDATE_GOVERNANCE_JSON
+        metric_candidate_governance_path.write_text(
+            json.dumps(metric_candidate_governance, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        if metric_candidate_governance_status == "FAIL_CLOSED":
+            review_hits.append("metric_candidate_governance_fail_closed_support_only")
+        elif metric_candidate_governance_status == "REVIEW_REQUIRED":
+            review_hits.append("metric_candidate_governance_review_required")
+    except Exception as exc:
+        metric_candidate_governance_status = "REVIEW_REQUIRED"
+        metric_candidate_governance = {
+            "module_id": "metric_candidate_governance_validator_lite_v1",
+            "status": "REVIEW_REQUIRED",
+            "metric_candidate_count": 0,
+            "readiness_counts": {},
+            "metric_value_output_allowed": False,
+            "claim_output_allowed": False,
+            "canonical_event_count": "UNKNOWN",
+            "production_release": False,
+            "error_type": type(exc).__name__,
+        }
+        metric_candidate_governance_path = output / METRIC_CANDIDATE_GOVERNANCE_JSON
+        metric_candidate_governance_path.write_text(
+            json.dumps(metric_candidate_governance, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        review_hits.append(f"metric_candidate_governance_exception:{type(exc).__name__}")
+
     prerequisites = {
         "xlsx_surface_audit": bool(xlsx),
         "provider_label_semantics": bool(label_semantics),
@@ -129,6 +164,9 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         "module_id": MODULE_ID,
         "status": "FAIL_CLOSED" if hard_blocks else ("REVIEW_REQUIRED" if review_hits else "SMOKE_PASS"),
         "metric_definition_policy_status": policy_status,
+        "metric_candidate_governance_status": metric_candidate_governance_status,
+        "metric_candidate_count": int(metric_candidate_governance.get("metric_candidate_count") or 0),
+        "metric_candidate_readiness_counts": dict(metric_candidate_governance.get("readiness_counts") or {}),
         "provider_metric_dictionary_status": dictionary_status,
         "aggregate_definition_alignment_status": alignment_status,
         "metric_anatomy_status": anatomy_status,
@@ -147,6 +185,7 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         ),
         "prerequisites": prerequisites,
         "metric_policy": policy,
+        "metric_candidate_governance": metric_candidate_governance,
         "provider_metric_dictionary": dictionary,
         "aggregate_definition_alignment": alignment,
         "metric_anatomy": anatomy,
@@ -170,6 +209,9 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
         "==============================================",
         f"status={payload['status']}",
         f"metric_definition_policy_status={policy_status}",
+        f"metric_candidate_governance_status={metric_candidate_governance_status}",
+        f"metric_candidate_count={payload['metric_candidate_count']}",
+        f"metric_candidate_readiness_counts={payload['metric_candidate_readiness_counts']}",
         f"provider_metric_dictionary_status={dictionary_status}",
         f"aggregate_definition_alignment_status={alignment_status}",
         f"metric_anatomy_status={anatomy_status}",
@@ -192,6 +234,7 @@ def run_metric_governance_bridge(out_dir: str | Path, product_root: str | Path) 
     ]), encoding="utf-8")
     payload["current_invocation_artifacts"] = [
         *[str(value) for value in anatomy.get("current_invocation_artifacts") or []],
+        str(metric_candidate_governance_path),
         str(json_path),
         str(txt_path),
     ]
