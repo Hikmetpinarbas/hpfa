@@ -41,6 +41,7 @@ PROCESS_PARTICIPATION_JSON = "analyst_episode_process_participation_projection_v
 OCCURRENCE_STATE_TRANSITION_JSON = "occurrence_state_transition_projection_v1.json"
 SPATIAL_TRANSITION_JSON = "spatial_transition_candidate_lite_v1.json"
 OCCURRENCE_CONSEQUENCE_JSON = "occurrence_consequence_projection_v1.json"
+TRACKABLE_CONSEQUENCE_JSON = "trackable_action_consequence_candidates_lite_v1.json"
 ACTION_OCCURRENCE_JSON = "action_occurrence_admission_lite_v1.json"
 TRACKABLE_TRACE_JSON = "trackable_action_trace_candidates_lite_v1.json"
 
@@ -5697,6 +5698,7 @@ def run_rich_lane(
 
     occurrence_transition_payload = _load_json(output / OCCURRENCE_STATE_TRANSITION_JSON)
     occurrence_consequence_payload = _load_json(output / OCCURRENCE_CONSEQUENCE_JSON)
+    trackable_consequence_payload = _load_json(output / TRACKABLE_CONSEQUENCE_JSON)
     action_occurrence_payload = _load_json(output / ACTION_OCCURRENCE_JSON)
     c02 = _bind_player_action_aggregate_context(c02, action_occurrence_payload)
     if c02.get("status") == "REVIEW_REQUIRED":
@@ -5749,7 +5751,7 @@ def run_rich_lane(
         c03.get("process_variant_board") or {},
     )
     visible_intervention_response_profile = _visible_intervention_response_profile(
-        occurrence_consequence_payload,
+        trackable_consequence_payload,
         trackable_trace_payload,
         c03,
     )
