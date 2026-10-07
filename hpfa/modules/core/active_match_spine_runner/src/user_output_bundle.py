@@ -5325,7 +5325,7 @@ def _human_residual_specialist_cards(
                 if seconds else ("çözümlenmedi" if language == "tr" else "unresolved")
             )
             displacement_text = (
-                f"{min(displacement):.1f}–{max(displacement):.1f} provider-koordinat birimi"
+                f"{min(displacement):.1f}–{max(displacement):.1f} kaynak-koordinat birimi"
                 if displacement else ("çözümlenmedi" if language == "tr" else "unresolved")
             )
             family_text = ", ".join(
@@ -5340,14 +5340,14 @@ def _human_residual_specialist_cards(
             if language == "tr":
                 cards.append(
                     f"Görünür müdahale-yanıt bağlamı — {attack_name}, {process_label}: {defence_name} tarafından {len(rows)} ilk tekil görünür müdahale; "
-                    f"müdahale aileleri {family_text}; ilk müdahaleye görünür süre {second_text}; provider koordinatındaki yer değiştirme {displacement_text}; "
-                    f"müdahale sonrası ilk görünür durumlar {followup_text}. Kapsam görünür müdahale zamanı, provider-koordinat değişimi ve ilk görünür devamdır; fiziksel/taktik baskı, oyuncu hızı, hata nedeni ve savunma kalitesi yorumları için ayrı observation gerekir."
+                    f"müdahale aileleri {family_text}; ilk müdahaleye görünür süre {second_text}; kaynak koordinat ölçeğindeki yer değiştirme {displacement_text}; "
+                    f"müdahale sonrası ilk görünür durumlar {followup_text}. Kapsam görünür müdahale zamanı, kaynak-koordinat değişimi ve ilk görünür devamdır; fiziksel/taktik baskı, oyuncu hızı, hata nedeni ve savunma kalitesi yorumları için ayrı observation gerekir."
                 )
             else:
                 cards.append(
                     f"Visible intervention-response context — {attack_name}, {process_label}: {len(rows)} first single visible interventions by {defence_name}; "
-                    f"intervention families {family_text}; visible time to first intervention {second_text}; provider-coordinate displacement {displacement_text}; "
-                    f"first visible post-intervention states {followup_text}. Scope is visible intervention timing, provider-coordinate change and first visible continuation; physical/tactical pressure, player speed, error-cause and defensive-quality interpretations require separate observation."
+                    f"intervention families {family_text}; visible time to first intervention {second_text}; source-coordinate displacement {displacement_text}; "
+                    f"first visible post-intervention states {followup_text}. Scope is visible intervention timing, source-coordinate change and first visible continuation; physical/tactical pressure, player speed, error-cause and defensive-quality interpretations require separate observation."
                 )
 
     gk = rich.get("goalkeeper_restart_consequence_context") or {}

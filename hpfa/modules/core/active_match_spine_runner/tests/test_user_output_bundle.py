@@ -3938,7 +3938,7 @@ def test_residual_rich_specialist_surfaces_reach_human_cards_without_overclaim()
     assert "Savunma maruziyeti/yanıt bağlamı" in joined
     assert "Görünür müdahale-yanıt bağlamı" in joined
     assert "3.0–6.0 sn" in joined
-    assert "5.0–8.0 provider-koordinat birimi" in joined
+    assert "5.0–8.0 kaynak-koordinat birimi" in joined
     assert "Kaleci yeniden başlatma bağlamı" in joined
     assert "Skor-durumu süreç karışımı" in joined
     assert "fiziksel mesafe üstünlüğü" not in joined.casefold()
@@ -3950,6 +3950,8 @@ def test_residual_rich_specialist_surfaces_reach_human_cards_without_overclaim()
     cleaned = user_output_bundle._hp_take_clean(cards, limit=10)
     cleaned_joined = " ".join(cleaned)
     assert "Kurulum/ilerleme bağlamı" in cleaned_joined
+    assert "müdahale-yanıt bağlamı" in cleaned_joined
+    assert "kaynak-koordinat birimi" in cleaned_joined
     assert "Kaleci yeniden başlatma bağlamı" in cleaned_joined
 
 
