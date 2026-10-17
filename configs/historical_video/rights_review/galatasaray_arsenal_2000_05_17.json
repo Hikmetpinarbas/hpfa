@@ -1,0 +1,88 @@
+{
+  "manifest_id": "rr_gs_ars_2000_05_17_v1",
+  "video_id": "uefa_cup_2000_final_galatasaray_arsenal",
+  "match_description": "UEFA Cup 1999/2000 final, Galatasaray 0-0 Arsenal (a.e.t., Galatasaray won 4-1 on penalties), 17 May 2000, Parken, Copenhagen",
+  "rights_status": "REVIEW_REQUIRED",
+  "acquisition_method": "UNKNOWN",
+  "download_protection_circumvented": null,
+  "publication_cleared": false,
+  "license": null,
+  "license_url": null,
+  "attribution": null,
+  "attestation": null,
+  "review_stage": "SOURCE_AND_RIGHTS_REVIEW_OPEN",
+  "rights_holder_candidates": [
+    "UEFA (competition audiovisual rights)",
+    "licensed broadcaster of the time (to be identified)",
+    "club media archive (to be identified)"
+  ],
+  "source_candidates": [
+    "UEFA.com / UEFA.tv archive",
+    "licensed broadcaster archive of 2000",
+    "Galatasaray SK media archive",
+    "operator-owned lawfully recorded copy (attestation required)"
+  ],
+  "forbidden_sources": [
+    "unlicensed re-uploads on video platforms",
+    "any copy obtained by stream ripping or bypassing download protection"
+  ],
+  "checklist": [
+    {
+      "id": "R1",
+      "question": "Who holds the audiovisual rights to this match footage (competition organiser, host club, licensed broadcaster, archive)?",
+      "answer": null,
+      "evidence": []
+    },
+    {
+      "id": "R2",
+      "question": "Which copy will be processed, and how was it obtained (official purchase/stream licence, broadcaster archive licence, club licence, operator-owned recording)?",
+      "answer": null,
+      "evidence": []
+    },
+    {
+      "id": "R3",
+      "question": "Does acquisition avoid circumventing any download, DRM, account or geo protection? (Must be YES; otherwise processing is refused.)",
+      "answer": null,
+      "evidence": []
+    },
+    {
+      "id": "R4",
+      "question": "Do the licence/terms permit computational analysis (frame decoding, derived event data)?",
+      "answer": null,
+      "evidence": []
+    },
+    {
+      "id": "R5",
+      "question": "What may be published: derived event data only, short clips/frames, nothing? Under which exception or licence?",
+      "answer": null,
+      "evidence": []
+    },
+    {
+      "id": "R6",
+      "question": "Has legal counsel or the rights holder confirmed R4/R5 in writing? (The pipeline makes no legal determination.)",
+      "answer": null,
+      "evidence": []
+    }
+  ],
+  "reference_event_candidates": [
+    {
+      "event_type": "PENALTY_SHOOTOUT",
+      "detail": "4-1 to Galatasaray; winning kick Gheorghe Popescu",
+      "sources": [
+        "https://en.wikipedia.org/wiki/2000_UEFA_Cup_final"
+      ]
+    },
+    {
+      "event_type": "CARD",
+      "detail": "Gheorghe Hagi sent off in extra time",
+      "sources": [
+        "https://en.wikipedia.org/wiki/2000_UEFA_Cup_final"
+      ]
+    }
+  ],
+  "reference_event_status": "SECONDARY_SOURCE_CANDIDATES_REQUIRE_PRIMARY_CONFIRMATION",
+  "processing_rule": "Pipeline refuses this video until rights_status is OPEN_LICENSE, LICENSED or OPERATOR_ATTESTED_LAWFUL_ACCESS with attestation, acquisition_method is admissible and download_protection_circumvented is false.",
+  "counterfactual_rule": "'If played today' analysis is a separate COUNTERFACTUAL_MODEL_LAYER and never edits observed rows.",
+  "reviewer": null,
+  "review_date": null
+}

@@ -1,0 +1,15 @@
+{
+  "manifest_id": "rv_soccertrack_v2_v1",
+  "video_id": "SOCCERTRACK_V2_MATCH_HALF",
+  "rights_status": "OPEN_LICENSE",
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "attribution": "SoccerTrack v2 — Scott, Uchida, Kuroda, Kim, Fujii (2025), arXiv:2508.01802; dataset https://huggingface.co/datasets/atomscott/soccertrack-v2 (CC BY 4.0). Changes: frames decoded and analysed; derived event candidates produced.",
+  "source_url": "https://huggingface.co/datasets/atomscott/soccertrack-v2",
+  "acquisition_method": "OFFICIAL_DATASET_DOWNLOAD_AFTER_ACCEPTING_TERMS",
+  "access_note": "The Hugging Face repository is gated: the operator requests access with their own account and accepts the terms. This is the intended access route, not a protection bypass.",
+  "download_protection_circumvented": false,
+  "publication_cleared": false,
+  "reference_label_source": "SOCCERTRACK_V2_BAS_HUMAN_LABELS",
+  "footage_domain": "PANORAMIC_FIXED_AMATEUR"
+}
