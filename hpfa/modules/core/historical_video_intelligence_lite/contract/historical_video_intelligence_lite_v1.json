@@ -1,0 +1,144 @@
+{
+  "module_id": "historical_video_intelligence_lite_v1",
+  "runtime": "Google Colab or any Linux host with ffmpeg; CPU sufficient",
+  "inputs": {
+    "video": "local file or entitled URL",
+    "rights_manifest": "JSON, see rights_gate.REQUIRED_FIELDS",
+    "reference_labels": "optional BAS-format JSON (validation only)",
+    "capability": "optional held-out admission JSON with validated_domain"
+  },
+  "outputs": [
+    "video_events_v1.json",
+    "video_event_review_queue_v1.tsv",
+    "hpfa_surface/video_event_surface_verified_v1.csv",
+    "video_stage_a_scan_v1.json",
+    "video_stage_a_series_v1.json",
+    "video_run_report_v1.json"
+  ],
+  "validation_outputs": [
+    "validation_summary_v1.json",
+    "validation_measurement_report_v1.md",
+    "capability_heldout_v1.json",
+    "capability_from_calibration_v1.json",
+    "tuned_config_v1.json"
+  ],
+  "event_types": [
+    "SHOT",
+    "GOAL",
+    "SET_PIECE_RESTART",
+    "FREE_KICK",
+    "CORNER_KICK",
+    "THROW_IN",
+    "KICK_OFF",
+    "BALL_RECOVERY"
+  ],
+  "event_fields": [
+    "event_id",
+    "layer",
+    "source_video_id",
+    "source_fingerprint",
+    "rights_manifest_id",
+    "period",
+    "video_time_s",
+    "video_time_end_s",
+    "video_timestamp",
+    "time_uncertainty_s",
+    "match_clock",
+    "event_type",
+    "event_subtype",
+    "team",
+    "team_basis",
+    "player",
+    "player_basis",
+    "detector_id",
+    "stage",
+    "score",
+    "score_basis",
+    "confidence_bound",
+    "evidence_kind",
+    "verification_status",
+    "verification_basis",
+    "capability_status",
+    "claim_ceiling"
+  ],
+  "verification_states": [
+    "CANDIDATE",
+    "REVIEW_REQUIRED",
+    "VERIFIED_REFERENCE",
+    "VERIFIED_HUMAN",
+    "REJECTED"
+  ],
+  "capability_states": [
+    "SUPPORTED_IN_VALIDATED_DOMAIN",
+    "EXPERIMENTAL",
+    "NOT_SUPPORTED"
+  ],
+  "default_capability": {
+    "SHOT": "NOT_SUPPORTED",
+    "GOAL": "NOT_SUPPORTED",
+    "SET_PIECE_RESTART": "NOT_SUPPORTED",
+    "FREE_KICK": "NOT_SUPPORTED",
+    "CORNER_KICK": "NOT_SUPPORTED",
+    "THROW_IN": "NOT_SUPPORTED",
+    "KICK_OFF": "NOT_SUPPORTED",
+    "BALL_RECOVERY": "NOT_SUPPORTED"
+  },
+  "hpfa_csv_event_type": {
+    "SHOT": [
+      "SHOT",
+      ""
+    ],
+    "GOAL": [
+      "GOAL",
+      ""
+    ],
+    "SET_PIECE_RESTART": [
+      "SET PIECE",
+      "UNKNOWN"
+    ],
+    "FREE_KICK": [
+      "SET PIECE",
+      "FREE KICK"
+    ],
+    "CORNER_KICK": [
+      "SET PIECE",
+      "CORNER KICK"
+    ],
+    "THROW_IN": [
+      "SET PIECE",
+      "THROW IN"
+    ],
+    "KICK_OFF": [
+      "SET PIECE",
+      "KICK OFF"
+    ],
+    "BALL_RECOVERY": [
+      "RECOVERY",
+      ""
+    ]
+  },
+  "claim_boundary": {
+    "canonical_event_count": "UNKNOWN",
+    "tracking_data_available": false,
+    "tracking_statistics_emitted": false,
+    "validated_team_identity": false,
+    "validated_player_identity": false,
+    "detector_score_is_probability": false,
+    "domain_transfer_admitted": false,
+    "counterfactual_mixed_with_observation": false,
+    "production_release": false
+  },
+  "does_not_measure": [
+    "tracking_statistics",
+    "distance_covered",
+    "speed_or_physical_load",
+    "pitch_control",
+    "team_shape_or_compactness",
+    "pressing_intensity",
+    "possession_share",
+    "pass_network",
+    "tactical_intention",
+    "causal_effect"
+  ],
+  "status": "SPEC_AND_EXECUTABLE_CANDIDATE_NOT_RELEASED"
+}

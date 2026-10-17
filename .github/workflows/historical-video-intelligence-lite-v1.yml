@@ -1,0 +1,44 @@
+name: Historical Video Intelligence Lite V1
+
+on:
+  pull_request:
+    paths:
+      - 'hpfa/modules/core/historical_video_intelligence_lite/**'
+      - 'configs/historical_video/**'
+      - 'notebooks/hpfa_historical_video_intelligence_colab_v1.ipynb'
+      - '.github/workflows/historical-video-intelligence-lite-v1.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: historical-video-intelligence-lite-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install test dependencies
+        run: python -m pip install pytest numpy
+      - name: Compile
+        run: python -m py_compile hpfa/modules/core/historical_video_intelligence_lite/src/*.py
+      - name: Notebook is valid JSON
+        run: python -c "import json; json.load(open('notebooks/hpfa_historical_video_intelligence_colab_v1.ipynb'))"
+      - name: Focused tests (incl. HPFA csv_surface_reader integration)
+        run: python -m pytest -q -p no:cacheprovider hpfa/modules/core/historical_video_intelligence_lite/tests
+      - name: Claim boundary
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "hpfa/modules/core/historical_video_intelligence_lite/src")
+          import hvi_contract as c
+          assert c.CANONICAL_EVENT_COUNT == "UNKNOWN"
+          assert c.CLAIM_BOUNDARY["tracking_statistics_emitted"] is False
+          assert c.CLAIM_BOUNDARY["production_release"] is False
+          assert set(c.DEFAULT_CAPABILITY.values()) == {c.NOT_SUPPORTED}
+          PY

@@ -100,28 +100,21 @@ def resolve_capability(capability: dict[str, Any] | None, domain: str) -> dict[s
     return resolved
 
 
-def run(
+def prepare(
     video: str,
     rights_manifest: dict[str, Any],
-    out_dir: str,
-    cfg: PipelineConfig | None = None,
-    reference: list[dict[str, Any]] | None = None,
+    cfg: PipelineConfig,
     period: str = "UNKNOWN",
-    capability: dict[str, str] | None = None,
     video_id: str | None = None,
-    domain: str = "UNDECLARED",
 ) -> dict[str, Any]:
-    cfg = cfg or PipelineConfig()
-    cfg.capability = resolve_capability(capability, domain)
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
+    """Rights gate, Stage A scan and Stage B window decoding (the costly part).
 
+    The result can be re-used by `detect` with different detection settings,
+    which is how calibration avoids decoding the video again.
+    """
     rights = evaluate_rights(rights_manifest)
     if not rights["processing_allowed"]:
-        payload = envelope("FAIL_CLOSED", rights_gate=rights, hard_block_hits=rights["hard_block_hits"])
-        (out / "video_run_report_v1.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-        return payload
-
+        return {"rights": rights}
     info = probe(video)
     fp = fingerprint(video)
     ctx = {
@@ -130,27 +123,70 @@ def run(
         "rights_manifest_id": rights_manifest["manifest_id"],
         "period": period,
     }
-
     with ResourceMeter() as meter_a:
         scan = stage_a_scan(video, cfg, fp)
     windows = scan["triage_windows"] + scan["random_audit_windows"]
     with ResourceMeter() as meter_b:
         extracted = [extract_window(video, w, cfg) for w in windows]
-        play_ref = pooled_reference(extracted)
-        window_reports = [analyze_window(x, play_ref, scan, cfg, ctx) for x in extracted]
+    return {
+        "rights": rights,
+        "info": info,
+        "fingerprint": fp,
+        "ctx": ctx,
+        "scan": scan,
+        "windows": windows,
+        "extracted": extracted,
+        "meter_a": meter_a.as_dict(),
+        "meter_b": meter_b.as_dict(),
+        "reference_label_source": rights_manifest.get("reference_label_source", "REFERENCE_LABELS"),
+    }
+
+
+def detect(prep: dict[str, Any], cfg: PipelineConfig) -> list[dict[str, Any]]:
+    scan, ctx = prep["scan"], prep["ctx"]
+    play_ref = pooled_reference(prep["extracted"])
+    prep["play_ref"] = play_ref
+    window_reports = [analyze_window(x, play_ref, scan, cfg, ctx) for x in prep["extracted"]]
+    prep["window_reports"] = window_reports
     raw_events = [e for r in window_reports for e in r["events"]] + audio_shot_candidates(scan, cfg, ctx)
     events = merge_candidates(raw_events, cfg.merge_tolerance_s)
-
-    # Events seen only inside random audit windows are flagged for review:
-    # they measure triage misses, they are not extra evidence.
+    # Events seen only inside random audit windows are flagged: they measure
+    # triage misses, they are not extra evidence.
     for e in events:
         origins = set(e["features"].get("merged_origins") or [e["features"].get("window_origin")])
         e["features"]["seen_in_random_audit_only"] = origins == {"RANDOM_AUDIT"}
+    return events
+
+
+def evaluate_prepared(prep: dict[str, Any], events: list[dict[str, Any]], reference: list[dict[str, Any]]) -> dict[str, Any]:
+    scan = prep["scan"]
+    return evaluate(events, reference, duration_s=prep["info"].duration_s, triage_windows=scan["triage_windows"], audit_windows=scan["random_audit_windows"])
+
+
+def finish(
+    prep: dict[str, Any],
+    cfg: PipelineConfig,
+    out_dir: str,
+    reference: list[dict[str, Any]] | None = None,
+    domain: str = "UNDECLARED",
+    extra_meta: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    rights = prep["rights"]
+    if not rights["processing_allowed"]:
+        payload = envelope("FAIL_CLOSED", rights_gate=rights, hard_block_hits=rights["hard_block_hits"])
+        (out / "video_run_report_v1.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        return payload
+    t0 = time.perf_counter()
+    events = detect(prep, cfg)
+    detect_wall = time.perf_counter() - t0
+    info, ctx, scan, fp = prep["info"], prep["ctx"], prep["scan"], prep["fingerprint"]
 
     evaluation = None
     capability_report = None
     if reference is not None:
-        evaluation = evaluate(events, reference, duration_s=info.duration_s, triage_windows=scan["triage_windows"], audit_windows=scan["random_audit_windows"])
+        evaluation = evaluate_prepared(prep, events, reference)
         capability_report = {
             "validated_domain": domain,
             "validation_video_id": ctx["source_video_id"],
@@ -159,21 +195,27 @@ def run(
             "note": "Admission from this run's metrics. Apply it only to OTHER videos (held-out); in-sample use is optimistic.",
             "capability": admit_capability(evaluation["per_event_type"]),
         }
-        events = mark_reference_verified(events, reference, reference_source=rights_manifest.get("reference_label_source", "REFERENCE_LABELS"))
+        events = mark_reference_verified(events, reference, reference_source=prep["reference_label_source"])
 
+    windows = prep["windows"]
     processed_s = sum(w["end_s"] - w["start_s"] for w in windows)
+    wall_a = prep["meter_a"]["wall_s"]
+    wall_b = prep["meter_b"]["wall_s"] + detect_wall
     measurement = {
         "video_duration_s": info.duration_s,
         "video_native_fps": info.fps,
         "video_resolution": [info.width, info.height],
+        "video_size_bytes": info.size_bytes,
         "stage_a": {
             "mode": scan["signal"],
             "bin_s": cfg.a_bin_s,
-            "analysis_width_px": cfg.a_width,
             "samples": scan["samples"],
+            "packets_read": scan.get("packets_read"),
             "effective_sample_rate_hz": scan["effective_sample_rate_hz"],
-            "resources": meter_a.as_dict(),
-            "realtime_factor": round(info.duration_s / meter_a.wall_s, 2) if meter_a.wall_s else None,
+            "resources": prep["meter_a"],
+            "realtime_factor": round(info.duration_s / wall_a, 2) if wall_a else None,
+            "triage_coverage_fraction": scan["triage_coverage_fraction"],
+            "random_audit_coverage_fraction": scan["random_audit_coverage_fraction"],
         },
         "stage_b": {
             "fps": cfg.b_fps,
@@ -182,12 +224,12 @@ def run(
             "windows_random_audit": len(scan["random_audit_windows"]),
             "seconds_processed": round(processed_s, 3),
             "coverage_fraction": round(processed_s / info.duration_s, 4) if info.duration_s else None,
-            "frames": sum(r["frames"] for r in window_reports),
-            "pooled_play_reference_activity": round(play_ref, 6),
-            "resources": meter_b.as_dict(),
+            "frames": sum(r["frames"] for r in prep["window_reports"]),
+            "pooled_play_reference_activity": round(prep["play_ref"], 6),
+            "resources": prep["meter_b"] | {"detection_wall_s": round(detect_wall, 3)},
         },
-        "total_wall_s": round(meter_a.wall_s + meter_b.wall_s, 3),
-        "total_realtime_factor": round(info.duration_s / (meter_a.wall_s + meter_b.wall_s), 2),
+        "total_wall_s": round(wall_a + wall_b, 3),
+        "total_realtime_factor": round(info.duration_s / (wall_a + wall_b), 2) if (wall_a + wall_b) else None,
         "host": host_info(),
     }
     meta = {
@@ -197,7 +239,7 @@ def run(
         "measurement": measurement,
         "evaluation": evaluation,
         "capability_from_this_run": capability_report,
-    }
+    } | (extra_meta or {})
     paths = write_event_outputs(out, events, meta)
     scan_slim = {k: v for k, v in scan.items() if k != "series"}
     (out / "video_stage_a_scan_v1.json").write_text(json.dumps(scan_slim, indent=2, sort_keys=True), encoding="utf-8")
@@ -205,15 +247,34 @@ def run(
     report = envelope(
         "PASS" if evaluation is not None else "REVIEW_REQUIRED",
         rights_gate=rights,
+        video=meta["video"],
+        config=cfg.to_dict(),
         measurement=measurement,
         evaluation=evaluation,
         capability_from_this_run=capability_report,
         outputs=paths,
         event_candidates=len(events),
         hard_block_hits=[],
-    )
+    ) | (extra_meta or {})
     (out / "video_run_report_v1.json").write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     return report
+
+
+def run(
+    video: str,
+    rights_manifest: dict[str, Any],
+    out_dir: str,
+    cfg: PipelineConfig | None = None,
+    reference: list[dict[str, Any]] | None = None,
+    period: str = "UNKNOWN",
+    capability: dict[str, Any] | None = None,
+    video_id: str | None = None,
+    domain: str = "UNDECLARED",
+) -> dict[str, Any]:
+    cfg = cfg or PipelineConfig()
+    cfg.capability = resolve_capability(capability, domain)
+    prep = prepare(video, rights_manifest, cfg, period, video_id)
+    return finish(prep, cfg, out_dir, reference, domain)
 
 
 def main() -> int:

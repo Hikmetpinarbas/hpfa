@@ -52,6 +52,7 @@ class PipelineConfig:
     b_fps: float = 5.0
     b_width: int = 384
     b_smooth_s: float = 1.2
+    b_stop_ratio: float = 0.55
     b_min_stoppage_s: float = 4.0
     restart_rise_ratio: float = 0.8
     goal_min_stoppage_s: float = 45.0
@@ -306,7 +307,7 @@ def analyze_window(extracted: dict[str, Any], play_ref: float, scan: dict[str, A
     if len(t) >= 3:
         act = series["activity"]
         ref = np.full(len(t), max(play_ref, 1e-6))
-        low = act < cfg.stop_ratio * np.maximum(ref, 1e-6)
+        low = act < cfg.b_stop_ratio * ref
         dt = 1.0 / cfg.b_fps
         segs = low_segments(t, low, cfg.b_min_stoppage_s, 2.5 * dt)
         cap = cfg.capability

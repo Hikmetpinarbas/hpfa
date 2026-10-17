@@ -332,3 +332,40 @@ def test_no_sample_match_identity_leak() -> None:
     for path in SRC.glob("*.py"):
         text = path.read_text(encoding="utf-8")
         assert not any(token in text for token in forbidden), path.name
+
+
+def test_machine_contract_matches_code() -> None:
+    import hvi_contract as c
+
+    contract = json.loads((MODULE / "contract" / "historical_video_intelligence_lite_v1.json").read_text(encoding="utf-8"))
+    assert contract["event_types"] == list(c.EVENT_TYPES)
+    assert contract["event_fields"] == list(c.EVENT_FIELDS)
+    assert contract["claim_boundary"] == c.CLAIM_BOUNDARY
+    assert set(contract["default_capability"].values()) == {NOT_SUPPORTED}
+
+
+@needs_ffmpeg
+def test_validation_driver_calibrates_then_reports_heldout(synthetic: dict) -> None:
+    import subprocess
+
+    data = synthetic["base"] / "dataset"
+    for match in ("MA", "MB"):
+        (data / "videos" / match).mkdir(parents=True, exist_ok=True)
+        (data / "bas" / match).mkdir(parents=True, exist_ok=True)
+        shutil.copy(synthetic["video"], data / "videos" / match / f"{match}_panorama_1st_half.mp4")
+        shutil.copy(synthetic["ref"], data / "bas" / match / f"{match}_12_class_events.json")
+    manifest = synthetic["base"] / "manifest.json"
+    manifest.write_text(json.dumps(OPEN_MANIFEST), encoding="utf-8")
+    out = synthetic["base"] / "validation"
+    proc = subprocess.run(
+        [sys.executable, str(SRC / "validate_dataset.py"), "--data", str(data), "--manifest", str(manifest),
+         "--calibrate", "MA:1", "--test", "MB:1", "--out", str(out), "--domain", "SYNTHETIC"],
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    summary = json.loads((out / "validation_summary_v1.json").read_text(encoding="utf-8"))
+    assert summary["heldout_videos"] == ["MB_h1"]
+    assert summary["capability_admission_heldout"]["validated_domain"] == "SYNTHETIC"
+    assert summary["heldout_pooled"]["SET_PIECE_RESTART"]["recall"] == 1.0
+    report = (out / "validation_measurement_report_v1.md").read_text(encoding="utf-8")
+    assert "Held-out event capture" in report and "Measurement" in report
