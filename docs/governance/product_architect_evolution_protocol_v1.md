@@ -1,6 +1,6 @@
 # HPFA Product Architect Evolution Protocol V1
 
-Status: `POLICY_CORRECTION_PASS`
+Status: `ZFGV_POLICY_CORRECTION_PASS`
 
 ## Product authority
 
@@ -17,9 +17,33 @@ runtime/active_single_match/current = ONLY match-truth authority
 
 This protocol extends, and does not replace, `HPFA_DONOR_TO_PRODUCT_OPERATING_MODEL_V1`.
 
+## Canonical observation doctrine
+
+```text
+EVENT ⊂ ZFGV
+ZFGV != EVENT
+```
+
+HPFA is a ZFGV football-intelligence product. ACTION/EVENT is one observation family and must never be used as the product-wide observation ceiling, admission veto, eligibility default or routing assumption.
+
+Every construct is evaluated from the evidence it actually requires:
+
+```text
+CONSTRUCT
+→ REQUIRED OBSERVATION CAPABILITIES
+→ ADMITTED CAPABILITIES
+→ OPTIONAL CAPABILITIES
+→ FORBIDDEN WITHOUT
+→ CLAIM CEILING
+→ ADMISSION DECISION
+```
+
+Missing required capability => `FAIL_CLOSED / DOWNGRADE`.
+Missing optional capability => `DEGRADED`.
+
 ## Mission
 
-Every architecture review must strengthen HPFA as a long-lived event-only football intelligence product.
+Every architecture review must strengthen HPFA as a long-lived ZFGV football intelligence product.
 
 The objective is not to finish the current feature. The objective is to increase one or more of:
 
@@ -41,44 +65,29 @@ repository governance
 Before proposing implementation:
 
 ```text
-1. current hpfa main
-2. HP-Motor
-3. HP-Engine
-4. HP-PROJELERI
-5. Google Drive
-6. Dropbox
-7. academic support
-8. runtime discovery / ACTIVE_MATCH evidence
+1. current hpfa main + current development frontier
+2. current producer / contract / tests / consumers
+3. HP-Motor
+4. HP-Engine
+5. HP-PROJELERI
+6. Google Drive
+7. Dropbox
+8. academic support
+9. ACTIVE_MATCH evidence when physically required
 ```
 
 The search begins with a declared HPFA product gap.
-
 Never search donors merely for interesting code.
 
 ## Donor rule
 
 ```text
 ADAPT_NOT_COPY
+REHABILITATE_BEFORE_PARALLEL_ENGINE
+CODE_LAST
 ```
 
-Never transplant donor modules.
-
-Extract only:
-
-```text
-capabilities
-patterns
-algorithms
-contracts
-interfaces
-pipelines
-data structures
-testing strategies
-architecture decisions
-reusable concepts
-```
-
-Then design an HPFA-native implementation with HPFA contracts, claim ceilings, tests, runtime boundaries and release status.
+Never transplant donor modules. Extract capabilities, algorithms, contracts, interfaces, pipelines, data structures, tests and architecture ideas, then design an HPFA-native implementation with explicit observation requirements, claim ceilings, tests, runtime boundaries and release status.
 
 ## Required architecture review output
 
@@ -87,379 +96,163 @@ Every substantive review must include:
 ```text
 Current limitation
 Hidden limitation
+Required observation capabilities
+Admitted / missing capabilities
 Better architecture
 Migration plan
-Future opportunities
 Tests required
+ACTIVE_MATCH need
+Analyst value delta
+Claim ceiling
 Release readiness
-```
-
-When relevant, also include:
-
-```text
-Decision log
-Rejected ideas
-Accepted ideas
-Architecture changes
-Implementation plan
-Risk register
-Release status
 ```
 
 ## Multi-role review council
 
-Every major proposal is reviewed from seven roles.
-
 ### CEO
-
-Questions:
-
-```text
-Does this create durable product differentiation?
-Does it improve analyst value or reduce strategic risk?
-Does it move HPFA toward the best event-only platform?
-```
+- Does this create durable product differentiation?
+- Does it improve analyst value or reduce strategic risk?
+- Does it expand defensible ZFGV intelligence rather than merely adding code?
 
 ### CTO
-
-Questions:
-
-```text
-Is the architecture reusable?
-Does it reduce or create coupling?
-Does it preserve source authority and release boundaries?
-```
+- Is the architecture reusable?
+- Does it reduce or create coupling?
+- Does it preserve source authority and release boundaries?
+- Does any ACTION/EVENT-specific component accidentally become a global ZFGV gate?
 
 ### Principal Engineer
-
-Questions:
-
-```text
-Are contracts explicit?
-Are identities stable?
-Can failures propagate deterministically?
-Is the implementation composable and maintainable?
-```
+- Are contracts explicit?
+- Are identities stable?
+- Can failures propagate deterministically?
+- Is admission capability-specific?
 
 ### Football Scientist
-
-Questions:
-
-```text
-What football behaviour becomes visible?
-What alternative explanations exist?
-What cannot be inferred from event-only data?
-```
+- What football behaviour becomes visible?
+- Which observation families are required?
+- What alternative explanations exist?
+- What cannot be inferred without tracking/video/external authority?
 
 ### QA Lead
-
-Questions:
-
-```text
-What are the failure modes?
-Which regression protects the largest surface?
-What evidence is required before merge and release?
-```
+- What are the failure modes?
+- Which regression protects the largest capability surface?
+- Can a valid non-event ZFGV construct be rejected by an event-shaped prerequisite?
 
 ### Research Director
-
-Questions:
-
-```text
-What is the known state of the art?
-What remains unknown?
-Which competing approaches should be compared?
-What evidence could falsify the proposal?
-```
+- What is the known state of the art?
+- What remains unknown?
+- Which competing approaches should be compared?
+- What evidence could falsify the proposal?
 
 ### Product Manager
-
-Questions:
-
-```text
-Who consumes the output?
-What analyst workflow improves?
-What is the smallest valuable product slice?
-```
-
-## Consensus rule
-
-The council must not converge early.
-
-A proposal is accepted only after recording:
-
-```text
-strongest supporting argument
-strongest objection
-main alternative
-rejection condition
-remaining uncertainty
-```
-
-Consensus cannot override a hard claim, authority, runtime or release boundary.
+- Who consumes the output?
+- What analyst workflow improves?
+- What is the smallest valuable product slice?
 
 ## Product scorecard
 
-Every proposal is scored from 1 to 5 on:
+Score Product Value, Engineering Cost, Maintainability, Runtime Cost, Future Reuse, AI Reuse, Football Value, Claim Safety and Release Risk.
 
-```text
-Product Value
-Engineering Cost
-Maintainability
-Runtime Cost
-Future Reuse
-AI Reuse
-Football Value
-Claim Safety
-Release Risk
-```
-
-Interpretation:
-
-```text
-high value + high reuse + high claim safety = preferred
-high cost + low reuse + high release risk = reject or defer
-```
-
-Pareto and Lindy policies apply:
-
-```text
-prioritize high-leverage work
-prefer durable contracts and abstractions
-reject isolated novelty with no downstream consumer
-```
+Prefer high-value, reusable, claim-safe work. Reject isolated novelty with no downstream consumer.
 
 ## Tough-review checklist
 
-The reviewer must actively search for:
+Actively search for:
 
 ```text
 architectural debt
 coupling
 circular dependencies
 weak abstractions
-naming problems
 governance drift
-scalability risks
-testing gaps
-claim risks
-football interpretation risks
-AI integration risks
-maintenance risks
 provider lock-in
 silent data loss
 state promotion
 identity loss
+hidden event-shaped universal prerequisite
+observation-family suppression
+aggregate→action identity leakage
+coordinate→tracking leakage
+provider label→tactical truth leakage
 ```
 
-For every issue provide:
+For every issue provide minimal fix, ideal fix, priority, impact and migration cost.
+
+## Research and opportunity eligibility
+
+A proposal is eligible when its required observation capabilities are available or can be acquired and admitted with an explicit claim ceiling.
+
+Eligible observation families include:
 
 ```text
-minimal fix
-ideal fix
-priority
-impact
-migration cost
+ACTION/EVENT
+ENTITY/ACTOR
+TEMPORAL
+SPATIAL
+OUTCOME/QUALIFIER
+RELATIONAL
+PROCESS/PARTICIPATION
+AGGREGATE/TABULAR
+EXTERNAL CONTEXT
+TRACKING/VIDEO when available and admitted
+HPFA-DERIVED INTELLIGENCE
 ```
 
-## 2035 opportunity filter
+No proposal is rejected merely because it is not ACTION/EVENT-shaped.
 
-Research may draw from:
+Examples:
+- aggregate/tabular constructs may be valid without action identity;
+- spatial constructs may be valid after pitch-frame/direction admission without tracking truth;
+- relational/process constructs may be valid without being reduced to provider success/failure labels;
+- tracking/video constructs require actual tracking/video authority where physical/off-ball truth is claimed.
 
-```text
-machine learning
-systems engineering
-physics
-network science
-information theory
-neuroscience
-complex adaptive systems
-military decision systems
-robotics
-distributed systems
-Bayesian inference
-knowledge graphs
-ontology engineering
-```
+## Claim-safety boundary
 
-Only ideas eventually implementable with event data are eligible.
-
-Reject ideas that fundamentally require tracking, video-derived geometry or physical-load truth.
-
-Every research idea must include:
-
-```text
-scientific basis
-football interpretation
-runtime feasibility
-claim safety
-potential module
-priority
-research roadmap
-evidence required
-failure modes
-future research questions
-```
-
-## Known-state / unknown-state protocol
-
-For every research topic document:
-
-```text
-known state of the art
-unknown problems
-research gaps
-competing approaches
-potential breakthroughs
-cross-disciplinary ideas
-implementation roadmap
-evidence required
-failure modes
-future research questions
-```
-
-A paper or donor document is research support only. It is never runtime truth.
-
-## Event-only eligibility gate
-
-A proposal is eligible only if its core output can eventually be generated from event data plus declared metadata.
-
-Examples of eligible families:
-
-```text
-sequence candidates
-change-point candidates
-entropy diagnostics
-transition matrices
-point-process intensity
-Bayesian evidence updates
-argument graphs
-contradiction routing
-uncertainty and abstention
-multi-scale context windows
-```
-
-Examples rejected without tracking or additional authority:
+Without the required admitted tracking/video/external evidence, do not promote to truth:
 
 ```text
 true pitch control
-true off-ball structure
-body orientation truth
-fatigue truth
-physical load truth
-coach intention
-complete tactical truth
+true team shape / compactness / defensive-line height
+off-ball geometry / runs / options
+body orientation / scanning
+true speed / load / fatigue
+pressure geometry
+coach intention / tactical plan
+dominance
+causality
+```
+
+This is an evidence-ceiling rule, not an Event-Only rule.
+
+Truth locks:
+
+```text
+ROW != EVENT TRUTH
+EVENT != WHOLE OBSERVATION UNIVERSE
+PROVIDER LABEL != PHYSICAL/TACTICAL TRUTH
+AGGREGATE != ACTION IDENTITY
+MULTIFORMAT != INDEPENDENT EVIDENCE
+SAME TIMESTAMP != TOTAL ORDER
+COORDINATE != TRACKING
+PROCESS LABEL != COACH INTENTION
+RECURRENCE != CAUSALITY
+MODEL OUTPUT != FACT
+LLM TEXT != EVIDENCE
+ABSENCE != COUNTEREVIDENCE
 ```
 
 ## Architecture preference
 
-Prefer:
+Prefer stable identifiers, small deterministic modules, explicit contracts, provider-neutral schemas, shared validation utilities, thin orchestrators, stage ledgers, traceable artifacts and fail-closed state machines.
 
-```text
-stable identifiers
-small deterministic modules
-explicit input/output contracts
-append-only registries
-provider-neutral schemas
-shared validation utilities
-thin orchestrators
-stage ledgers
-traceable JSON/TSV/text artifacts
-fail-closed state machines
-```
-
-Reject or isolate:
-
-```text
-monoliths
-implicit field aliases
-silent repair
-opaque aggregate scores
-hardcoded match identity
-provider-specific shortcuts
-untraceable generated language
-single-signal truth assignment
-```
+Reject or isolate monoliths, implicit aliases, silent repair, opaque aggregate scores, hardcoded match identity, provider-specific shortcuts, untraceable generated language and single-signal truth assignment.
 
 ## AI reuse standard
 
-AI may assist with:
+AI may assist with search, classification, schema proposal, argument comparison, counter-scenario generation, report candidate composition and research synthesis. AI may not become an unlogged source of match truth.
 
-```text
-search
-classification
-schema proposal
-argument comparison
-counter-scenario generation
-report candidate composition
-research synthesis
-```
-
-AI may not become an unlogged source of match truth.
-
-Every AI-assisted artifact must preserve:
-
-```text
-input evidence refs
-model-independent contract
-claim ceiling
-review state
-withdrawal conditions
-human or gate decision
-```
-
-## Required decision log
-
-Each major architecture decision records:
-
-```text
-decision_id
-product_gap
-current_main_state
-donor_sources_checked
-accepted_capability
-rejected_alternatives
-HPFA_native_contract
-runtime_dependency
-claim_impact
-test_strategy
-release_impact
-migration_cost
-open_questions
-```
-
-## Required risk register
-
-Each proposal records:
-
-```text
-risk_id
-risk_family
-trigger
-impact
-likelihood
-mitigation
-regression_test
-owner_module
-release_blocking
-```
-
-Risk families:
-
-```text
-architecture
-data authority
-claim safety
-football interpretation
-runtime
-AI integration
-maintenance
-release
-```
+Every AI-assisted artifact must preserve input evidence refs, model-independent contract, claim ceiling, review state, withdrawal conditions and human/gate decision.
 
 ## Release discipline
-
-The architecture council may recommend implementation, but cannot promote release without evidence.
 
 ```text
 SPEC_ONLY != executable
@@ -468,34 +261,13 @@ RELEASE_CANDIDATE != production
 PASS != RELEASE
 ```
 
-Required release answer:
-
-```text
-current status
-missing evidence
-blocking risks
-next eligible status
-```
-
-## Current HPFA architecture priorities
-
-Under Pareto + Lindy review, current highest-leverage work remains:
-
-```text
-1. repository and open-PR hygiene
-2. cross-module failure propagation
-3. shared recursive forbidden-field guard
-4. canonical Argument -> Defeasible Route -> Evidence Graph contract
-5. end-to-end Intelligence Chain fixture
-6. thin Intelligence Pipeline Orchestrator
-7. ACTIVE_MATCH engineering + analyst evidence
-```
-
-New isolated metrics, readers and report templates are lower priority until this integration spine is proven.
+The architecture council may recommend implementation but cannot promote release without required evidence.
 
 ## Final rule
 
 ```text
+Do not ask whether a football capability fits Event-Only.
+Ask which ZFGV observations are required to defend it.
 Do not optimize for today's feature.
 Optimize for HPFA's ten-year capability surface.
 ```

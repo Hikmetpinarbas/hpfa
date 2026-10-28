@@ -1,18 +1,19 @@
 from_stage	to_stage	edge_type	gate_condition	pass_behavior	degraded_behavior	fail_closed_behavior
-01_SOURCE_AUTHORITY_GATE	02_ACTIVE_MATCH_SELECTION	mandatory	active source authorized	continue	none	stop
-02_ACTIVE_MATCH_SELECTION	03_RAW_SURFACE_DISCOVERY	mandatory	selected surface exists	continue	review only	stop
-03_RAW_SURFACE_DISCOVERY	04_CANONICAL_INGEST	preferred	raw surface manifest complete	canonicalize	degraded metadata	stop
-03_RAW_SURFACE_DISCOVERY	05_DATA_QUALITY_GATE	fallback	canonical ingest not implemented but schema aliases available	run gate on selected surface	run gate with degraded notes	stop
-04_CANONICAL_INGEST	05_DATA_QUALITY_GATE	mandatory_after_implementation	canonical output exists	run data quality gate	run data quality gate with degraded metadata	stop
-05_DATA_QUALITY_GATE	06_GATE_REPORT_CONSUMER	mandatory	gate_report exists and contract valid	read policy	read policy in degraded mode	stop all downstream
-06_GATE_REPORT_CONSUMER	07_PHASE_SEQUENCE_SEGMENTATION	mandatory	phase_sequence_allowed true	run phase sequence	run only degraded-aware mode	stop
-06_GATE_REPORT_CONSUMER	08_METRIC_CONTRACT_REGISTRY_CHECK	mandatory	metric_layer_allowed true or conditional	run registry check	run conditional readiness only	stop
-07_PHASE_SEQUENCE_SEGMENTATION	08_METRIC_CONTRACT_REGISTRY_CHECK	context_dependency	phase/sequence evidence available	contextual metric readiness	limited readiness	stop context metrics
-08_METRIC_CONTRACT_REGISTRY_CHECK	09_METRIC_PRIMITIVE_COMPUTATION	mandatory	metric status OK or degraded-aware	compute primitive	compute limited primitive	stop metric branch
-09_METRIC_PRIMITIVE_COMPUTATION	10_PROGRESSION_ENGINE	conditional	progression prerequisites available	produce progression evidence	produce evidence-only degraded output	hold progression
-10_PROGRESSION_ENGINE	11_CONSEQUENCE_CONTEXT_ATTACHMENT	conditional	progression evidence and match context available	attach context	descriptive context only	stop report path
-11_CONSEQUENCE_CONTEXT_ATTACHMENT	12_CLAIM_GATE_SAFE_LANGUAGE	hold_until_language_gate	report_language_permission true AND executable_language_gate exists AND audit_policy exists	evaluate wording after explicit permission	hold descriptive evidence only	stop report path
-12_CLAIM_GATE_SAFE_LANGUAGE	13_FOOTBALL_OUTPUT_AUDIT	mandatory_for_output	safe wording decisions exist AND report_language_permission true	audit output	audit limited section	stop output
-13_FOOTBALL_OUTPUT_AUDIT	14_MATCH_STORY_REPORT_LAYER	mandatory_for_story	audit pass	build story/report	build limited evidence report	no story release
-14_MATCH_STORY_REPORT_LAYER	15_RELEASE_RUNTIME_EVIDENCE_PACK	mandatory_for_release	report layer completed	write evidence pack	write no-release evidence pack	no release
-15_RELEASE_RUNTIME_EVIDENCE_PACK	END	terminal	release decision written	end	end	end
+01_SOURCE_AUTHORITY_GATE	02_ACTIVE_MATCH_SELECTION	mandatory	active source authorized	bind canonical ACTIVE_MATCH authority	review only	stop
+02_ACTIVE_MATCH_SELECTION	03_RAW_SURFACE_DISCOVERY	mandatory	canonical ACTIVE_MATCH exists	inventory visible surfaces	review only	stop
+03_RAW_SURFACE_DISCOVERY	04_OBSERVATION_FAMILY_ADMISSION	mandatory	raw surface manifest available	classify/admit observation families and required semantics	preserve unresolved families as REVIEW_REQUIRED	stop unsupported surface branch
+04_OBSERVATION_FAMILY_ADMISSION	05_ACTION_EVENT_DATA_QUALITY_GATE	conditional_event_branch	ACTION/EVENT family admitted AND selected consumer requires event-shaped quality gate	run event-specific data quality gate	run event gate in degraded mode	stop ACTION/EVENT consumer branch only
+05_ACTION_EVENT_DATA_QUALITY_GATE	05A_EVENT_GATE_REPORT_CONSUMER	mandatory_for_legacy_event_consumer	event gate report exists and contract valid	read event-branch permission	read event permission in degraded mode	stop ACTION/EVENT consumer branch
+05A_EVENT_GATE_REPORT_CONSUMER	07_EVENT_PHASE_SEQUENCE_SUBPATH	conditional_event_branch	phase_sequence permission true for event-specific consumer	run event/action phase-sequence consumer	run degraded-aware event consumer	stop event phase-sequence branch
+04_OBSERVATION_FAMILY_ADMISSION	06_CONSTRUCT_OBSERVATION_ADMISSION	mandatory_for_constructs	observation capability manifest available	evaluate each construct against required/optional admitted capabilities	downgrade construct if only optional capability missing	fail-close construct with missing required capability
+06_CONSTRUCT_OBSERVATION_ADMISSION	08_METRIC_CONSTRUCT_REGISTRY_CHECK	conditional_construct_branch	metric/model construct declares required observation contract	run construct-specific metric definition/admission check	run degraded/review readiness only	stop metric/model construct branch
+07_EVENT_PHASE_SEQUENCE_SUBPATH	10_RELATION_EPISODE_PROCESS_BINDING	context_dependency	admitted event/action sequence evidence exists	bind eligible relation/episode/process evidence	limited context only	stop dependent event-derived branch
+08_METRIC_CONSTRUCT_REGISTRY_CHECK	09_METRIC_MODEL_COMPUTATION	conditional_construct_branch	metric/model definition admitted and required capabilities present	compute candidate output	compute only degraded candidate if contract permits	stop metric/model branch
+09_METRIC_MODEL_COMPUTATION	10_RELATION_EPISODE_PROCESS_BINDING	context_dependency	computed metric/model candidate is eligible as support/context	attach as non-factual support under dependency controls	retain review-only support	stop dependent construct branch
+04_OBSERVATION_FAMILY_ADMISSION	10_RELATION_EPISODE_PROCESS_BINDING	conditional_observation_branch	relational/process/temporal/spatial prerequisites admitted	bind relation/episode/process candidates	bind only admitted degraded context	stop unsupported relation/process branch
+10_RELATION_EPISODE_PROCESS_BINDING	11_CONSEQUENCE_VARIATION_COUNTEREVIDENCE	conditional	eligible episode/process/variant evidence available	build consequence/variation/counterevidence candidates	produce review-only descriptive candidates	stop claim-dependent branch
+11_CONSEQUENCE_VARIATION_COUNTEREVIDENCE	12_SAFE_FINDING_CLAIM_ADMISSION	conditional_claim_branch	current-run support/counterevidence and required claim prerequisites admitted	evaluate Safe Finding/claim admission	DOWNGRADE/ABSTAIN/REVIEW as evidence requires	fail-close unsafe claim branch
+12_SAFE_FINDING_CLAIM_ADMISSION	13_FOOTBALL_OUTPUT_AUDIT	mandatory_for_output	current-run claim decisions exist or explicit NOT_EVALUATED state is recorded	audit evidence/claim consistency	audit limited current-run evidence	stop analyst-output branch
+13_FOOTBALL_OUTPUT_AUDIT	14_ANALYST_REPORT_LAYER	mandatory_for_report	audit permits bounded analyst output	compose evidence-bounded analyst report	compose limited/review report	no analyst report
+14_ANALYST_REPORT_LAYER	15_RUNTIME_EVIDENCE_PACK	mandatory_for_runtime_evidence	current-run report/evidence outputs accounted	write exact-head runtime evidence pack	write no-release/review evidence pack	no release evidence claim
+15_RUNTIME_EVIDENCE_PACK	END	terminal	runtime evidence state recorded	end	end	end

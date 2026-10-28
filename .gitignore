@@ -42,3 +42,24 @@ tools/.#*
 
 # HPFA diagnostics
 /_diag/
+
+# Local runtime authority and generated match/report outputs.
+# Existing historical tracked artefacts are unaffected; new generated copies stay local.
+/runtime/
+/out/
+
+# Raw donor/vendor snapshots are not product-tree dependencies.
+/vendor/
+
+# Nested legacy/imported product trees are not current authority.
+/hpfa-main/
+
+# Historical inbox material must be distilled into an owning product surface.
+/data_inbox/
+
+# Historical/provider match datasets do not belong in the product source tree.
+/data/keepbox/
+/data/quarantine/
+
+# Historical graphics research packs are distilled into governed presentation policy.
+/graphics_pack/

@@ -231,6 +231,58 @@ def test_dependent_csv_xml_reflection_does_not_add_independent_support_vote(tmp_
     assert result["dependent_reflection_adds_support_vote"] is False
 
 
+def test_missing_optional_reflection_serialization_degrades_without_closing_evidence_spine(
+    tmp_path: Path,
+) -> None:
+    _write_sources(tmp_path)
+    (tmp_path / "goalkeeper_surface.xml").unlink()
+    payload = _payload()
+    goalkeeper = next(
+        row for row in payload["row_nuclei"] if row["source_role"] == "GOALKEEPER"
+    )
+    goalkeeper["source_refs"] = [
+        row for row in goalkeeper["source_refs"] if row["source_format"] != "xml"
+    ]
+    goalkeeper["serialization_family_candidates"] = ["csv"]
+    goalkeeper["status"] = "REVIEW_REQUIRED"
+    goalkeeper["lineage_admission_status"] = "LINEAGE_REVIEW_REQUIRED"
+    goalkeeper["lineage_review_reasons"] = ["optional_reflection_serialization_missing"]
+    goalkeeper["review_reasons"] = ["optional_reflection_serialization_missing"]
+    payload["status"] = "REVIEW_REQUIRED"
+
+    result = mod.build_evidence_atom_inventory(payload, tmp_path, _registry())
+
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["match_surface_binding_id"]
+    assert result["evidence_atom_count"] == 3
+    assert result["match_surface_binding_coverage_state"] == "DEGRADED_SERIALIZATION_COVERAGE"
+    assert result["match_surface_binding_missing_optional_serializations"] == [
+        {"source_role": "GOALKEEPER", "source_format": "xml"}
+    ]
+    assert "match_surface_binding_optional_serialization_missing:GOALKEEPER:xml" in result[
+        "review_hits"
+    ]
+
+
+def test_missing_required_role_still_fails_closed(tmp_path: Path) -> None:
+    _write_sources(tmp_path)
+    payload = _payload()
+    payload["row_nuclei"] = [
+        row for row in payload["row_nuclei"] if row["source_role"] != "GOALKEEPER"
+    ]
+    payload["row_nucleus_candidate_count"] = len(payload["row_nuclei"])
+
+    result = mod.build_evidence_atom_inventory(payload, tmp_path, _registry())
+
+    assert result["status"] == "FAIL_CLOSED"
+    assert result["match_surface_binding_id"] is None
+    assert result["evidence_atom_count"] == 0
+    assert result["match_surface_binding_coverage_state"] == "INVALID_REQUIRED_ROLE_COVERAGE"
+    assert "match_surface_binding_required_role_missing:GOALKEEPER" in result[
+        "hard_block_hits"
+    ]
+
+
 def test_same_time_and_source_row_index_cannot_create_order(tmp_path: Path) -> None:
     _write_sources(tmp_path)
     result = mod.build_evidence_atom_inventory(_payload(), tmp_path, _registry())
@@ -295,3 +347,43 @@ def test_nested_phone_output_is_rejected(tmp_path: Path) -> None:
         assert str(exc) == "nested_phone_output_directory_rejected"
     else:
         raise AssertionError("nested HPFA output must be rejected")
+
+
+def test_reviewed_semantic_facets_are_preserved_zero_loss_on_evidence_atom(tmp_path: Path) -> None:
+    _write_sources(tmp_path)
+    registry = _registry()
+    registry["exact_rules"].append({
+        "label": "Progressive passes accurate",
+        "source_roles": ["PLAYER_SURFACE_CANDIDATE"],
+        "semantic_role": "ACTION_ANCHOR",
+        "action_family": "PASS",
+        "outcome": "SUCCESS",
+        "direction": "FORWARD",
+        "distance": "LONG",
+        "zone": "PENALTY_AREA",
+        "context": "OPEN_PLAY",
+        "progression": "PROGRESSIVE_CANDIDATE",
+        "key_action": "KEY_PASS_CANDIDATE",
+        "action_subtype": "PASS_SUBTYPE_CANDIDATE",
+        "downstream_eligibility": "ACTION_CANDIDATE_ELIGIBLE",
+        "semantics_decision": "EXACT_REVIEWED_ACTION",
+        "review_status": "REVIEWED_CANDIDATE",
+        "rule_id": "test_progressive_pass_facets",
+    })
+    payload = _payload()
+    payload["row_nuclei"][0] = _nucleus(
+        nucleus_id="rn_progressive",
+        role="PLAYER",
+        provider_id="777",
+        label="Progressive passes accurate",
+    )
+
+    result = mod.build_evidence_atom_inventory(payload, tmp_path, registry)
+    atom = next(item for item in result["evidence_atoms"] if item["row_nucleus_candidate_id"] == "rn_progressive")
+    assert atom["progression_candidate"] == "PROGRESSIVE_CANDIDATE"
+    assert atom["direction_candidate"] == "FORWARD"
+    assert atom["distance_candidate"] == "LONG"
+    assert atom["zone_candidate"] == "PENALTY_AREA"
+    assert atom["context_candidate"] == "OPEN_PLAY"
+    assert atom["key_action_candidate"] == "KEY_PASS_CANDIDATE"
+    assert atom["action_subtype_candidate"] == "PASS_SUBTYPE_CANDIDATE"

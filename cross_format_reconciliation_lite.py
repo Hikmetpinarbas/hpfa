@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -122,6 +123,37 @@ def _attach_role_bridge_audit(
     return result
 
 
+def _attach_format_dependency_topology(result: dict[str, Any]) -> dict[str, Any]:
+    typed: list[str] = []
+    for pair in result.get("pair_reports", []) or []:
+        if pair.get("decision") == "PASS_ALIGNMENT_CANDIDATE":
+            pair["dependency_type"] = "SERIALIZATION_REFLECTION"
+            pair["dependency_claim_ceiling"] = "DEPENDENCY_DESCRIPTION_ONLY"
+            pair["independent_support_allowed"] = False
+            pair["reflection_equivalence_truth"] = False
+            typed.append("SERIALIZATION_REFLECTION")
+        else:
+            pair["dependency_type"] = "UNRESOLVED"
+            pair["dependency_claim_ceiling"] = "DEPENDENCY_DESCRIPTION_ONLY"
+            pair["independent_support_allowed"] = False
+            pair["reflection_equivalence_truth"] = False
+            typed.append("UNRESOLVED")
+
+        xlsx_support = pair.get("xlsx_support")
+        if isinstance(xlsx_support, dict):
+            xlsx_support["dependency_type"] = "AGGREGATE_DERIVATION_UNRESOLVED"
+            xlsx_support["dependency_claim_ceiling"] = "DEPENDENCY_DESCRIPTION_ONLY"
+            xlsx_support["independent_confirmation_allowed"] = False
+            typed.append("AGGREGATE_DERIVATION_UNRESOLVED")
+
+    result["dependency_type_counts"] = dict(sorted(Counter(typed).items()))
+    result["typed_dependency_independent_support_allowed"] = False
+    result["typed_dependency_event_identity_truth"] = False
+    result["typed_dependency_occurrence_identity_truth"] = False
+    result["typed_dependency_claim_ceiling"] = "DEPENDENCY_DESCRIPTION_ONLY"
+    return result
+
+
 def runtime_build_reconciliation(
     input_root: str | Path,
     inventory: dict[str, Any],
@@ -145,6 +177,7 @@ def runtime_build_reconciliation(
             label_semantics_payload,
             xml_group_registry,
         )
+        result = _attach_format_dependency_topology(result)
         return _attach_role_bridge_audit(
             result,
             None,
@@ -173,6 +206,7 @@ def runtime_build_reconciliation(
             label_semantics_payload,
             xml_group_registry,
         )
+        result = _attach_format_dependency_topology(result)
         return _attach_role_bridge_audit(
             result,
             role_report,
@@ -196,6 +230,7 @@ def runtime_build_reconciliation(
         label_semantics_payload,
         xml_group_registry,
     )
+    result = _attach_format_dependency_topology(result)
     return _attach_role_bridge_audit(
         result,
         role_report,
@@ -205,8 +240,9 @@ def runtime_build_reconciliation(
 
 # Runtime adaptations for the reconstructed historical capability:
 # 1) identifiers remain representation-sensitive candidates;
-# 2) content-admitted source-role candidates are applied before role pairing.
-# Neither adaptation promotes provider identity, physical event identity or tactical truth.
+# 2) content-admitted source-role candidates are applied before role pairing;
+# 3) cross-format and aggregate dependency relations are typed without creating support votes.
+# None of these adaptations promotes provider identity, physical event identity or tactical truth.
 core.norm_field = runtime_norm_field
 core.build_reconciliation = runtime_build_reconciliation
 

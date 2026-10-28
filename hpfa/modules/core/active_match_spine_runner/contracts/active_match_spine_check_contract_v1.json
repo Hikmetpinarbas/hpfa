@@ -21,8 +21,11 @@
     "report_language",
     "production_binding"
   ],
-  "phone_output_policy": {
-    "root": "/sdcard/Download/HPFA",
-    "nested_folders_allowed": false
+  "delivery_output_policy": {
+    "policy_owner": "hpfa/platforms/termux_delivery_policy.py",
+    "core_owns_absolute_device_paths": false,
+    "termux_direct_download_root_must_remain_flat": true,
+    "delivery_policy_is_football_truth": false,
+    "delivery_policy_is_runtime_authority": false
   }
 }

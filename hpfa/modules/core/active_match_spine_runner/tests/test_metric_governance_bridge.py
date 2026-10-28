@@ -21,3 +21,18 @@ def test_metric_governance_bridge_preserves_claim_locks_without_runtime_prerequi
     assert any("prerequisite_missing" in hit for hit in report["review_hits"])
     assert (tmp_path / "active_match_metric_governance_bridge_v1.json").is_file()
     assert (tmp_path / "active_match_metric_governance_bridge_v1.txt").is_file()
+
+
+def test_metric_governance_bridge_materializes_existing_metric_candidate_registry(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[5]
+    report = run_metric_governance_bridge(tmp_path, repo_root)
+
+    assert report["metric_candidate_governance_status"] == "SMOKE_PASS"
+    assert report["metric_candidate_count"] == 11
+    assert report["metric_candidate_readiness_counts"] == {
+        "READY_FOR_METRIC_BUILDER_CONTRACT": 11
+    }
+    assert report["metric_candidate_governance"]["metric_value_output_allowed"] is False
+    assert report["metric_candidate_governance"]["claim_output_allowed"] is False
+    assert report["metric_candidate_governance"]["canonical_event_count"] == "UNKNOWN"
+    assert (tmp_path / "metric_candidate_governance_lite_v1.json").is_file()

@@ -1,3 +1,4 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
-exec "$HOME/hpfa/tools/hpfa-release.sh" "$@"
+REPO="${HPFA_REPO:-$HOME/hpfa}"
+exec "$REPO/tools/hpfa-release.sh" "$@"

@@ -1,2 +1,5 @@
+# Legacy developer bootstrap only.
+# This file is not the authoritative HPFA product runtime dependency contract.
+# Product/runtime and optional dependency roles live in pyproject.toml.
 pandas>=2.0
 pytest>=8.0

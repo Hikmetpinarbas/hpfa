@@ -483,6 +483,33 @@ def xml_label_records(payload: dict[str, Any], registry: dict[str, Any]) -> list
         source_role = str(file_row.get("source_role") or "UNKNOWN")
         relative_path = str(file_row.get("relative_path") or file_row.get("file_name") or "")
         sha256 = file_row.get("sha256")
+
+        taxonomy = file_row.get("action_taxonomy", []) or []
+        if taxonomy:
+            for row in taxonomy:
+                raw_group = str(row.get("raw_group") or "").strip()
+                raw_label = str(row.get("raw_label") or "").strip()
+                if normalize_label(raw_group) != "action" or not raw_label:
+                    continue
+                dedupe_key = (source_role, relative_path, normalize_label(raw_label))
+                if dedupe_key in seen_labels:
+                    continue
+                seen_labels.add(dedupe_key)
+                volume = row.get("surface_row_volume")
+                records.append(
+                    _base_record(
+                        source_format="xml",
+                        source_role=source_role,
+                        relative_path=relative_path,
+                        source_sha256=str(sha256) if sha256 else None,
+                        raw_label=raw_label,
+                        surface_row_volume=int(volume) if isinstance(volume, int) else None,
+                        evidence_scope="FULL_XML_ACTION_LABEL_SURFACE_VOLUME_NOT_ROW_IDENTITY",
+                        registry=registry,
+                    )
+                )
+            continue
+
         for example in file_row.get("example_rows", []) or []:
             group_key = next((key for key in example if key.casefold().endswith("label.group")), None)
             text_key = next((key for key in example if key.casefold().endswith("label.text")), None)

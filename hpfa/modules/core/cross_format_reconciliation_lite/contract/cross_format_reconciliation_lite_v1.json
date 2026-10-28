@@ -1,6 +1,6 @@
 {
   "module_id": "cross_format_reconciliation_lite_v1",
-  "contract_version": "provider_semantic_provenance_research_hardening_v2",
+  "contract_version": "complementary_observation_composition_v3",
   "inputs": [
     "multiformat_file_inventory_lite_v1.json",
     "csv_surface_audit_lite_v1.json",
@@ -78,7 +78,9 @@
     "field_semantics_version",
     "label_semantics_version",
     "reconciliation_status",
-    "active_match_evidence_pass"
+    "active_match_evidence_pass",
+    "shared_occurrence_candidate_count",
+    "observation_composition_policy"
   ],
   "candidate_signature_without_id_fields": [
     "start",
@@ -180,5 +182,26 @@
     "tactical_truth": false,
     "production_release": false,
     "claim_ceiling": "CROSS_FORMAT_SURFACE_RECONCILIATION_CANDIDATE_ONLY"
+  },
+  "observation_composition_model": {
+    "shared_occurrence_candidate_basis": "same-role CSV/XML rows with aligned required temporal/action anchors",
+    "required_temporal_action_anchors": [
+      "start",
+      "end",
+      "period",
+      "action"
+    ],
+    "spatial_facets": [
+      "pos_x",
+      "pos_y"
+    ],
+    "identity_context_facets": [
+      "code",
+      "team"
+    ],
+    "nonconflicting_visible_facets_may_complement": true,
+    "overlapping_cross_format_fields_add_independent_support_vote": false,
+    "xlsx_creates_occurrence_identity": false,
+    "xlsx_role": "AGGREGATE_TABULAR_CONTEXT"
   }
 }

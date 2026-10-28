@@ -5,6 +5,17 @@ Node: hpfa_core_canonical_ingest_donor_discovery_v1
 Status: DISCOVERY_PASS_PLAN_ONLY
 Primary product context: POSTMATCH_RELEASE_0.1 / PROGRESSION_ENGINE
 
+## ZFGV Migration Authority Note — 2026-09-15
+
+Authority status: `HISTORICAL_ONLY`
+Migration classification: `GLOBAL_ERROR` for the historical product-wide ingest assumption preserved below.
+
+This discovery record is retained for donor lineage only. It is **not** current or future-current product-wide admission authority. The historical wording that all football analysis must first pass through one canonical event table is superseded by `EVENT ⊂ ZFGV` and construct-specific observation admission.
+
+Any future ingest implementation must be derived from the current ZFGV observation contract. ACTION/EVENT schemas may be required for ACTION/EVENT constructs that actually need them; valid ENTITY/ACTOR, TEMPORAL, SPATIAL, OUTCOME/QUALIFIER, RELATIONAL, PROCESS/PARTICIPATION, AGGREGATE/TABULAR, EXTERNAL CONTEXT, TRACKING/VIDEO or HPFA-DERIVED INTELLIGENCE must not be rejected merely because `event_id` / `event_type` or a canonical event row is absent.
+
+Current authority lives in the current governance and observation-contract surfaces, not in this PLAN_ONLY donor record.
+
 ## Product Owner Translation
 
 Canonical ingest is the translator that turns different match data files into one HPFA language before any football analysis is allowed.

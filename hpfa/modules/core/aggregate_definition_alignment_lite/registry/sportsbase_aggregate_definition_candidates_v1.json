@@ -7,11 +7,15 @@
       "provider_id": "sportsbase",
       "provider_version": "provider_definition_unverified",
       "source_roles": [
-        "PLAYER_SURFACE_CANDIDATE"
+        "AGGREGATE_OR_TABULAR_SURFACE_CANDIDATE"
       ],
       "aggregate_label": "Passes accurate, %",
       "metric_id": "pass_completion_rate_candidate",
-      "metric_definition_fingerprint_sha256": "42b89dca3e3e07580a3267bba6388fe44fbb81048962d145bd74f9c615a1bb42",
+      "metric_definition_fingerprint_sha256": "02403db56ea63a005a3212dc1065656cd6f046839e343286143aaaba3f556446",
+      "metric_policy_definition_fingerprint_sha256": "02403db56ea63a005a3212dc1065656cd6f046839e343286143aaaba3f556446",
+      "supersedes_binding_fingerprints": [
+        "42b89dca3e3e07580a3267bba6388fe44fbb81048962d145bd74f9c615a1bb42"
+      ],
       "value_type": "percentage",
       "unit": "percent",
       "numerator_definition": "Provider-version rows eligible under the declared successful-pass candidate definition.",
@@ -23,7 +27,7 @@
             "xml"
           ],
           "source_roles": [
-            "PLAYER_SURFACE_CANDIDATE"
+            "MATCH_SUMMARY_SURFACE_CANDIDATE"
           ],
           "action_family_candidate": "PASS",
           "outcome_candidate": "SUCCESS"
@@ -34,7 +38,7 @@
             "xml"
           ],
           "source_roles": [
-            "PLAYER_SURFACE_CANDIDATE"
+            "MATCH_SUMMARY_SURFACE_CANDIDATE"
           ],
           "action_family_candidate": "PASS",
           "outcome_candidate": "FAILURE"

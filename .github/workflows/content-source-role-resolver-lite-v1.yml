@@ -8,6 +8,10 @@ on:
       - 'docs/contracts/content_source_role_resolver_lite_v1.md'
       - '.github/workflows/content-source-role-resolver-lite-v1.yml'
 
+concurrency:
+  group: hpfa-${{ github.workflow_ref }}-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest

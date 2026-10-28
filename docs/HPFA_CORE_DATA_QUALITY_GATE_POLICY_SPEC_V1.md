@@ -3,6 +3,8 @@
 NODE: hpfa_core_data_quality_gate_policy_spec_v1
 STATUS: SPEC_PLAN_ONLY
 
+ZFGV migration note (2026-09-15): `AUTHORITY_STATUS=HISTORICAL_ONLY`. The generic product-wide event-surface admission policy described below is historical planning lineage, not current/future-current ZFGV authority. Any future gate must validate only the observation capabilities required by the target construct/source surface; non-event ZFGV families cannot be rejected merely because event-shaped fields are absent.
+
 ## Purpose
 
 Specify the future generic HPFA data quality gate policy.

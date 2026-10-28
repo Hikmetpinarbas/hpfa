@@ -1,0 +1,221 @@
+{
+  "can_authorize_emit": false,
+  "can_strengthen_claim_ceiling": false,
+  "contract_id": "zfgv_pattern_contract_v1",
+  "contract_role": "DECLARATIVE_PATTERN_QUESTION_CONTRACT_ONLY",
+  "creates_new_evidence": false,
+  "creates_parallel_engine": false,
+  "execution_owner": "visible_action_sequence_candidates_lite_existing_sequence_variant_spine",
+  "patterns": [
+    {
+      "actor_bindings": [
+        "ANCHOR_TEAM",
+        "FIRST_FOLLOWUP_TEAM"
+      ],
+      "allowed_same_time_semantics": "SAME_TIMESTAMP_INTERNAL_ORDER_UNRESOLVED",
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_LOSS_TO_OPPONENT_PROCESS_CONTEXT_ONLY",
+      "counterexample_definition": "FIRST_ADMITTED_FOLLOWUP_IS_SAME_TEAM_OR_TEAM_UNRESOLVED_OR_NO_OPPONENT_PROCESS_INTERVAL_MATCH",
+      "current_owner_components": [
+        "occurrence_consequence_projection",
+        "trackable_action_trace_candidates_lite",
+        "process_participation_variant_context_adapter",
+        "rich_multiformat_analysis_lane"
+      ],
+      "degraded_behavior": "KEEP_VISIBLE_LOSS_AND_FOLLOWUP_STATE; OMIT_UNSUPPORTED_PROCESS_BINDING",
+      "forbidden_inference": [
+        "COUNTERPRESS_QUALITY_TRUTH",
+        "DEFENSIVE_TRANSITION_SUCCESS_TRUTH",
+        "CAUSALITY",
+        "COACH_INTENTION",
+        "POSSESSION_TRUTH"
+      ],
+      "ordered_relation_requirement": "CONFIRMED_AFTER_OR_ADMITTED_AFTER_ONLY",
+      "outcome_requirement": "VISIBLE_LOSS_OR_CONTROL_ERROR_SEMANTIC",
+      "pattern_id": "LOSS_TO_OPPONENT_VISIBLE_PROCESS_V1",
+      "pattern_question": "After an admitted visible loss/control-error occurrence, what is the first admitted opponent follow-up and, when uniquely observable, which provider-reviewed opponent process contains it?",
+      "process_family_requirement": "OPPONENT_PROVIDER_REVIEWED_PROCESS_INTERVAL_IF_UNIQUELY_VISIBLE",
+      "required_observation_families": [
+        "ACTION_EVENT",
+        "ENTITY_ACTOR",
+        "TEMPORAL",
+        "RELATIONAL",
+        "PROCESS_PARTICIPATION",
+        "OUTCOME_QUALIFIER"
+      ],
+      "spatial_requirement": "OPTIONAL",
+      "time_window": "CURRENT_ADMITTED_FOLLOWUP_HORIZON_AND_RELATION_CONTRACT",
+      "withdrawal_conditions": [
+        "WITHDRAW_IF_ANCHOR_TEAM_NOT_UNIQUE",
+        "WITHDRAW_IF_FIRST_FOLLOWUP_TEAM_NOT_UNIQUE",
+        "WITHDRAW_PROCESS_BINDING_IF_PROCESS_INTERVAL_NOT_UNIQUE"
+      ]
+    },
+    {
+      "actor_bindings": [
+        "RECOVERY_TEAM",
+        "FIRST_FOLLOWUP_TEAM"
+      ],
+      "allowed_same_time_semantics": "SAME_TIMESTAMP_INTERNAL_ORDER_UNRESOLVED",
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_RECOVERY_TO_PROCESS_CONTEXT_ONLY",
+      "counterexample_definition": "NO_ADMITTED_FOLLOWUP_OR_TEAM_UNRESOLVED_OR_RELOSS_VISIBLE_OR_NO_PROCESS_INTERVAL_MATCH",
+      "current_owner_components": [
+        "occurrence_consequence_projection",
+        "process_participation_variant_context_adapter",
+        "rich_multiformat_analysis_lane"
+      ],
+      "degraded_behavior": "PRESERVE_RECOVERY_CONSEQUENCE_STATE_WITHOUT_PROCESS_PROMOTION",
+      "forbidden_inference": [
+        "PRESSING_SUCCESS_TRUTH",
+        "COUNTERPRESS_TRUTH",
+        "CAUSALITY",
+        "COACH_INTENTION",
+        "POSSESSION_TRUTH"
+      ],
+      "ordered_relation_requirement": "CONFIRMED_AFTER_OR_ADMITTED_AFTER_ONLY",
+      "outcome_requirement": "VISIBLE_RECOVERY_SEMANTIC",
+      "pattern_id": "RECOVERY_TO_NEXT_VISIBLE_PROCESS_V1",
+      "pattern_question": "After an admitted visible recovery, what is the first admitted follow-up and which provider-reviewed same-team process contains it when uniquely observable?",
+      "process_family_requirement": "SAME_TEAM_PROVIDER_REVIEWED_PROCESS_INTERVAL_IF_UNIQUELY_VISIBLE",
+      "required_observation_families": [
+        "ACTION_EVENT",
+        "ENTITY_ACTOR",
+        "TEMPORAL",
+        "RELATIONAL",
+        "PROCESS_PARTICIPATION"
+      ],
+      "spatial_requirement": "OPTIONAL",
+      "time_window": "CURRENT_ADMITTED_FOLLOWUP_HORIZON_AND_RELATION_CONTRACT",
+      "withdrawal_conditions": [
+        "WITHDRAW_IF_RECOVERY_TEAM_NOT_UNIQUE",
+        "WITHDRAW_IF_FIRST_FOLLOWUP_ORDER_UNRESOLVED",
+        "WITHDRAW_PROCESS_BINDING_IF_PROCESS_INTERVAL_NOT_UNIQUE"
+      ]
+    },
+    {
+      "actor_bindings": [
+        "SET_PIECE_TEAM",
+        "FIRST_STRICT_AFTER_TEAM"
+      ],
+      "allowed_same_time_semantics": "FIRST_STRICTLY_LATER_LAYER_ONLY",
+      "claim_ceiling": "MATCH_LOCAL_BOUNDED_POST_SET_PIECE_FIRST_VISIBLE_TEAM_STATE_ONLY",
+      "counterexample_definition": "FIRST_STRICT_AFTER_TRACE_OUTSIDE_DECLARED_HORIZON_OR_TEAM_UNRESOLVED",
+      "current_owner_components": [
+        "process_participation_projection",
+        "trackable_action_trace_candidates_lite",
+        "occurrence_consequence_projection",
+        "rich_multiformat_analysis_lane"
+      ],
+      "degraded_behavior": "REPORT_OUTSIDE_HORIZON_OR_UNRESOLVED_WITHOUT_CONTINUATION_LABEL",
+      "forbidden_inference": [
+        "SECOND_BALL_TRUTH",
+        "RECYCLE_TRUTH",
+        "POSSESSION_TRUTH",
+        "DESIGNED_ROUTINE_TRUTH",
+        "CAUSALITY"
+      ],
+      "ordered_relation_requirement": "STRICT_AFTER_PROCESS_END_TIME",
+      "outcome_requirement": "NONE_FOR_TEAM_STATE_DESCRIPTION",
+      "pattern_id": "SET_PIECE_TO_BOUNDED_FIRST_VISIBLE_STATE_V1",
+      "pattern_question": "Within the declared consequence horizon after a provider-reviewed set-piece process ends, which team owns the first strictly later visible trace layer?",
+      "process_family_requirement": "SET_PIECE_ATTACK_CANDIDATE",
+      "required_observation_families": [
+        "PROCESS_PARTICIPATION",
+        "TEMPORAL",
+        "ENTITY_ACTOR",
+        "ACTION_EVENT"
+      ],
+      "spatial_requirement": "NOT_REQUIRED",
+      "time_window": "DECLARED_OCCURRENCE_CONSEQUENCE_MAXIMUM_HORIZON",
+      "withdrawal_conditions": [
+        "WITHDRAW_IF_CONSEQUENCE_HORIZON_UNRESOLVED",
+        "WITHDRAW_IF_FIRST_STRICT_AFTER_TEAM_NOT_UNIQUE"
+      ]
+    },
+    {
+      "actor_bindings": [
+        "SAME_XLSX_ENTITY_SCOPE"
+      ],
+      "allowed_same_time_semantics": "NOT_APPLICABLE",
+      "claim_ceiling": "MATCH_LOCAL_ACCESS_CREATION_TERMINAL_CONTEXT_ONLY",
+      "counterexample_definition": "ACCESS_PRESENT_WITHOUT_TERMINAL_OR_TERMINAL_PRESENT_WITHOUT_ACCESS_OR_DENOMINATOR_UNDEFINED",
+      "current_owner_components": [
+        "rich_multiformat_analysis_lane_C01",
+        "xlsx_entity_metric_projection_lite"
+      ],
+      "degraded_behavior": "KEEP_SEPARATE_DIMENSION_PROFILE; EMIT_NO_RATE",
+      "forbidden_inference": [
+        "CONVERSION_EFFICIENCY_WITHOUT_ELIGIBLE_DENOMINATOR",
+        "QUALITY_SCORE",
+        "CAUSALITY",
+        "TACTICAL_SUPERIORITY"
+      ],
+      "ordered_relation_requirement": "NONE_AGGREGATE_CONTEXT_ONLY",
+      "outcome_requirement": "TERMINAL_AGGREGATE_CONTEXT_IF_OBSERVED",
+      "pattern_id": "POSITIONAL_ACCESS_TO_TERMINAL_CONTEXT_V1",
+      "pattern_question": "On the same admitted aggregate entity scope, which access, creation and terminal dimensions are jointly visible without inventing a conversion denominator?",
+      "process_family_requirement": "OPTIONAL_POSITIONAL_PROCESS_CONTEXT",
+      "required_observation_families": [
+        "AGGREGATE_TABULAR",
+        "ENTITY_ACTOR",
+        "PROVENANCE"
+      ],
+      "spatial_requirement": "PROVIDER_DERIVED_ACCESS_LABELS_ALLOWED; GEOMETRIC_TRUTH_NOT_REQUIRED",
+      "time_window": "MATCH_LOCAL_AGGREGATE_SCOPE",
+      "withdrawal_conditions": [
+        "WITHDRAW_RATE_IF_ELIGIBLE_DENOMINATOR_UNDEFINED",
+        "WITHDRAW_CROSS_ENTITY_PAIRING"
+      ]
+    },
+    {
+      "activation_state": "REVIEW_REQUIRED_NOT_PRODUCT_ADMITTED",
+      "actor_bindings": [
+        "SAME_TEAM_PROCESS_IDENTITY"
+      ],
+      "allowed_same_time_semantics": "SAME_TIMESTAMP_CANNOT_ESTABLISH_STABILIZATION_ORDER",
+      "claim_ceiling": "MATCH_LOCAL_VISIBLE_TRANSITION_STABILIZATION_CANDIDATE_ONLY",
+      "counterexample_definition": "LARGE_OR_UNBOUNDED_GAP; INTERVENING_OPPONENT_PROCESS; INTERVENING_SET_PIECE; PERIOD_BOUNDARY; SAME_TIME_ORDER_UNRESOLVED; NO_POSITIONAL_SUCCESSOR",
+      "current_owner_components": [
+        "rich_multiformat_analysis_lane_counterattack_next_process_context",
+        "process_participation_projection",
+        "temporal_relation_admission_adapter"
+      ],
+      "degraded_behavior": "REPORT_COUNTERATTACK_NEXT_VISIBLE_PROCESS_AND_TIME_GAP_ONLY; DO_NOT_LABEL_STABILIZATION",
+      "forbidden_inference": [
+        "STABILIZATION_TRUTH_WITHOUT_ADMITTED_TIME_BOUND",
+        "POSSESSION_TRUTH",
+        "COACH_INTENTION",
+        "TEAM_SHAPE_STABILIZATION",
+        "PHYSICAL_COMPACTNESS",
+        "CAUSALITY"
+      ],
+      "ordered_relation_requirement": "COUNTERATTACK_PROCESS_END_STRICTLY_BEFORE_POSITIONAL_PROCESS_START",
+      "outcome_requirement": "COUNTERATTACK_TERMINAL_STATE_AND_SUCCESSOR_PROCESS_VISIBILITY_REQUIRED",
+      "pattern_id": "VISIBLE_TRANSITION_STABILIZATION_CANDIDATE_V1",
+      "pattern_question": "When can an observed counterattack process and a later same-team positional process be treated as a bounded near-successor stabilization candidate rather than merely two later-visible processes?",
+      "process_family_requirement": "COUNTERATTACK_CANDIDATE_THEN_POSITIONAL_ATTACK_CANDIDATE",
+      "required_observation_families": [
+        "PROCESS_PARTICIPATION",
+        "TEMPORAL",
+        "RELATIONAL",
+        "ACTION_EVENT",
+        "OUTCOME_QUALIFIER"
+      ],
+      "spatial_requirement": "OPTIONAL_PROVIDER_AXIS_CONTEXT_ONLY",
+      "time_window": "NO_NUMERIC_THRESHOLD_ADMITTED_YET; REQUIRES_EXPLICIT_BOUND_FROM_PROVIDER_OR_EMPIRICALLY_VALIDATED_CONTRACT",
+      "withdrawal_conditions": [
+        "WITHDRAW_IF_NO_EXPLICIT_TEMPORAL_BOUND_ADMITTED",
+        "WITHDRAW_IF_INTERVENING_PROCESS_BREAKS_NEAR_SUCCESSOR_RELATION",
+        "WITHDRAW_IF_PROCESS_IDENTITY_OR_ORDER_UNRESOLVED"
+      ]
+    }
+  ],
+  "truth_locks": {
+    "absence_is_counterevidence": false,
+    "aggregate_is_action_identity": false,
+    "model_output_is_fact": false,
+    "production_release": false,
+    "provider_label_is_tactical_truth": false,
+    "recurrence_is_causality": false,
+    "same_timestamp_is_total_order": false
+  }
+}

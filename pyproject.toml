@@ -1,12 +1,76 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hpfa"
 version = "0.1.0"
+description = "Claim-safe, match-agnostic football intelligence core."
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
+classifiers = [
+  "Private :: Do Not Upload",
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+
+[project.scripts]
+hpfa-active-match = "active_match_spine_runner:main"
+
+[project.optional-dependencies]
+xls = ["xlrd>=2.0.2"]
+reference = ["pypdf>=6.0"]
+dev = ["pytest>=8.0", "openpyxl>=3.1"]
+legacy-tools = [
+  "numpy>=2.0",
+  "pandas>=2.0",
+  "matplotlib>=3.8",
+  "mplsoccer>=1.4",
+]
 
 [tool.setuptools]
-packages = ["canon", "canon.definitions"]
+include-package-data = true
+py-modules = [
+  "active_match_spine_runner",
+  "active_match_full_run",
+  "action_bundle_multi_family_review_taxonomy_current_v1",
+  "action_occurrence_admission_current_v1",
+  "analyst_output_claim_admission_current_v1",
+  "cross_role_relation_candidate_resolver_current_v1",
+  "evidence_atom_inventory_lite",
+  "match_local_identity_candidates_lite",
+  "safe_finding_admission_current_v1",
+  "semantic_role_action_bundle_candidates_lite",
+  "trackable_action_consequence_candidates_current_v1",
+  "trackable_action_trace_candidates_current_v1",
+  "visible_action_sequence_candidates_current_v1",
+  "analyst_episode_locator",
+  "axis_integrity_tagger",
+  "boundary_analysis_scorer",
+  "content_source_role_resolver",
+  "context_action_semantics_rebind",
+  "cross_format_reconciliation_lite",
+  "csv_surface_reader_lite",
+  "episode_feature_vector",
+  "event_window_builder",
+  "multiformat_file_inventory",
+  "provider_alias_field_semantics_lite",
+  "provider_label_value_semantics_lite",
+  "post_sequence_admission_finalizer_current_v1",
+  "reconstruction_intelligence_packet_adapter_current_v1",
+  "row_nucleus_inventory",
+  "time_scale_router",
+  "triangulated_event_reflection_resolver",
+  "xlsx_surface_reader_lite",
+  "xml_surface_reader_lite",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hpfa", "hpfa.*", "canon", "canon.*"]
+exclude = ["hpfa.tests*", "hpfa.modules.*.tests*", "hpfa-main*", "build*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.csv", "*.tsv", "*.yaml", "*.yml", "*.txt", "*.md"]

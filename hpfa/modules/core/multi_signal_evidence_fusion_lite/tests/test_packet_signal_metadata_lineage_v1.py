@@ -47,15 +47,17 @@ def test_packet_preserves_signal_metadata_alongside_legacy_refs():
     assert counter["contradiction_basis"] == "same_construct_same_window_opposite_direction_candidate"
 
 
-def test_fusion_consumes_packet_builder_explicit_contradiction_metadata():
+def test_fusion_preserves_legacy_contradiction_metadata_without_promoting_counterevidence():
     packet = build_composite_packet(candidate_with_explicit_contradiction())
     fusion = fuse_packet(packet)
-    assert fusion["fusion_status"] == "MIXED_WITH_EXPLICIT_CONTRADICTION"
-    assert fusion["contradiction_signal_count"] == 1
+    assert fusion["fusion_status"] == "SUPPORTED_WITH_QUALIFIER"
+    assert fusion["contradiction_signal_count"] == 0
     rows = [row for row in fusion["relation_records"] if row["signal_ref"] == "counter_generic_001"]
     assert len(rows) == 1
-    assert rows[0]["relation_type"] == "CONTRADICTS"
+    assert rows[0]["relation_type"] == "QUALIFIES"
     assert rows[0]["relation_basis"] == "same_construct_same_window_opposite_direction_candidate"
+    assert rows[0]["comparison_status"] == "NOT_EVALUATED"
+    assert rows[0]["counterevidence_class"] == "UNRESOLVED"
 
 
 def test_non_explicit_counter_signal_remains_qualifier():

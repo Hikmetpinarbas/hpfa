@@ -1,6 +1,6 @@
 {
   "module_id": "action_occurrence_admission_lite_v1",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "purpose": "Admit precision-first multi-annotation ACTION_OCCURRENCE_CANDIDATE and RELATION_BUNDLE_CANDIDATE objects from the current evidence spine without promoting canonical event truth.",
   "input_modules": [
     "evidence_atom_inventory_lite_v1",
@@ -47,7 +47,10 @@
     "conditional_review_requires_exact_counterpart_before_candidate": true,
     "upstream_review_provenance_preserved": true,
     "content_source_role_bridge_status_propagated": true,
-    "input_payload_mutation_allowed": false
+    "input_payload_mutation_allowed": false,
+    "same_timestamp_candidate_count_is_event_count": false,
+    "same_timestamp_multi_family_is_multiple_event_truth": false,
+    "same_timestamp_cardinality_state": "UNRESOLVED_WITHOUT_ADDITIONAL_IDENTITY_EVIDENCE"
   },
   "claim_boundary": {
     "claim_ceiling": "ACTION_OCCURRENCE_CANDIDATE_ONLY",
@@ -78,6 +81,41 @@
     "test_source_row_order_truth_input_fails_closed",
     "test_same_time_order_truth_input_fails_closed",
     "test_claim_boundaries_remain_closed",
-    "test_no_sample_match_identity_leak"
+    "test_no_sample_match_identity_leak",
+    "test_same_timestamp_candidate_multiplicity_never_becomes_event_count_truth",
+    "test_collapsed_multi_annotation_occurrence_exposes_nucleus_and_facet_roles",
+    "test_exact_timestamp_bucket_preserves_multiple_candidates_without_event_count_or_order_truth",
+    "test_timestamp_observation_bucket_preserves_non_action_roles_without_event_inflation",
+    "test_context_interval_process_labels_project_as_process_not_generic_context",
+    "test_public_adapter_exposes_timestamp_bucket_cardinality_without_event_truth",
+    "test_public_adapter_exposes_timestamp_observation_role_buckets"
+  ],
+  "observation_composition_policy": {
+    "role_vocabulary": [
+      "ACTION_NUCLEUS",
+      "FACET",
+      "RELATION",
+      "OUTCOME",
+      "PROCESS",
+      "PARTICIPATION",
+      "CONTEXT",
+      "UNRESOLVED"
+    ],
+    "timestamp_bucket_is_event_container": false,
+    "same_timestamp_is_merge_authority": false,
+    "same_timestamp_is_split_authority": false,
+    "same_timestamp_internal_ordering_allowed": false,
+    "observation_count_is_event_count": false,
+    "facet_rows_create_additional_occurrences": false,
+    "process_participation_creates_physical_action": false,
+    "canonical_event_count": "UNKNOWN",
+    "true_action_count": "UNKNOWN"
+  },
+  "runtime_projection_fields": [
+    "observation_occurrence_timestamp_buckets",
+    "observation_occurrence_timestamp_bucket_count",
+    "observation_timestamp_buckets",
+    "observation_timestamp_bucket_count",
+    "same_timestamp_cardinality_state"
   ]
 }

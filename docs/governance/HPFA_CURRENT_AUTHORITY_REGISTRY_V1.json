@@ -1,68 +1,146 @@
 {
-  "record": "HPFA_CURRENT_AUTHORITY_REGISTRY_V1",
-  "record_date": "2026-08-29",
-  "status": "VERIFIED_AUTHORITY_POLICY_RECORD",
-  "product_repository": "Hikmetpinarbas/hpfa",
-  "product_main": {
-    "branch": "main",
-    "role": "PRODUCT_MAIN",
-    "current_head_rule": "RESOLVE_FROM_GITHUB_MAIN_AT_READ_TIME",
-    "static_head_is_current_truth": false
-  },
   "active_match_runtime_authority": {
+    "match_package_id": "TRABZONSPOR_4_0_GALATASARAY_2026_09_19",
+    "package_fingerprint_sha256": "8cd23194ab0867dece870f48367913fa9c9d99cd9d6921901111106036de6dc6",
     "path": "runtime/active_single_match/current",
-    "role": "SOLE_ACTIVE_MATCH_RUNTIME_AUTHORITY"
-  },
-  "controlled_landings_historical_lineage": {
-    "C1_FOUNDATION": {
-      "merge_commit": "f3dc7b44d6bb899033a605a690f6cc51fb0199a4",
-      "final_state_source_pr": 254
-    },
-    "C2_EVIDENCE_SPINE": {
-      "merge_commit": "871cd3c4948dd72b80aaa2983268811d7a22b39b",
-      "final_state_source_pr": 263
-    },
-    "C3_RECONSTRUCTION_PARTIAL_ORDER": {
-      "merge_commit": "adb9c1d60cf98c79fd1de1c7a6df7b822c11496a",
-      "final_state_source_pr": 267
-    },
-    "C4_INTELLIGENCE_CORRECTNESS_INTEGRATION": {
-      "merge_commit": "d23f868a5287811b4dc6e2912085aa85fd547a64",
-      "final_state_source_pr": 278
-    },
-    "RECONSTRUCTION_TO_INTELLIGENCE_PACKET_BRIDGE": {
-      "merge_commit": "ab8c9a7a3152108eeede5b3a2204d2d1fcb14726",
-      "source_pr": 284,
-      "exact_pr_head_active_match_evidence": "9b3db1afb88b2d4c592a6c7eabae718c6ab993e8"
-    }
-  },
-  "historical_reference": {
-    "previous_manual_current_pointer_commit": "ab8c9a7a3152108eeede5b3a2204d2d1fcb14726",
-    "classification": "HISTORICAL_LINEAGE_NOT_CURRENT_PRODUCT_HEAD"
+    "role": "SOLE_ACTIVE_MATCH_RUNTIME_AUTHORITY",
+    "surface_count": 8
   },
   "authority_separation": {
-    "product_main_is_active_match_runtime": false,
+    "ci_success_is_active_match_evidence": false,
     "donor_repo_is_product_truth": false,
     "historical_pr_runtime_evidence_is_current_main_runtime_evidence": false,
-    "ci_success_is_active_match_evidence": false,
     "merged_is_production_release": false,
+    "product_main_is_active_match_runtime": false,
     "static_governance_file_is_current_product_truth": false
-  },
-  "current_truth_resolution": {
-    "product_head": "QUERY_GITHUB_MAIN",
-    "open_pr_issue_review_state": "QUERY_GITHUB_CURRENT_STATE",
-    "active_match_truth": "READ_RUNTIME_ACTIVE_SINGLE_MATCH_CURRENT",
-    "manual_current_sha_allowed": false,
-    "stale_snapshot_must_not_override_live_authority": true
   },
   "claim_locks": {
     "canonical_event_count": "UNKNOWN",
-    "true_action_count": "UNKNOWN",
     "phase_truth": false,
     "possession_truth": false,
+    "production_release": false,
     "sequence_truth": false,
     "tactical_truth": false,
-    "production_release": false
+    "true_action_count": "UNKNOWN"
   },
-  "donor_rule": "ADAPT_NOT_COPY"
+  "controlled_landings_historical_lineage": {
+    "C1_FOUNDATION": {
+      "final_state_source_pr": 254,
+      "merge_commit": "f3dc7b44d6bb899033a605a690f6cc51fb0199a4"
+    },
+    "C2_EVIDENCE_SPINE": {
+      "final_state_source_pr": 263,
+      "merge_commit": "871cd3c4948dd72b80aaa2983268811d7a22b39b"
+    },
+    "C3_RECONSTRUCTION_PARTIAL_ORDER": {
+      "final_state_source_pr": 267,
+      "merge_commit": "adb9c1d60cf98c79fd1de1c7a6df7b822c11496a"
+    },
+    "C4_INTELLIGENCE_CORRECTNESS_INTEGRATION": {
+      "final_state_source_pr": 278,
+      "merge_commit": "d23f868a5287811b4dc6e2912085aa85fd547a64"
+    },
+    "RECONSTRUCTION_TO_INTELLIGENCE_PACKET_BRIDGE": {
+      "exact_pr_head_active_match_evidence": "9b3db1afb88b2d4c592a6c7eabae718c6ab993e8",
+      "merge_commit": "ab8c9a7a3152108eeede5b3a2204d2d1fcb14726",
+      "source_pr": 284
+    }
+  },
+  "current_closure_state": {
+    "active_wip": "MATERIALIZE_VALIDATED_WIP_AS_CLEAN_ACCEPTANCE_SNAPSHOT",
+    "multi_match_portability": "NOT_CLOSED",
+    "p3_current_head_physical_acceptance": "BLOCKED_BY_REPRODUCIBILITY",
+    "p4_zero_emit_diagnostic": "WIP_PASS_EXACT_HEAD_PENDING",
+    "p5_evidence_spine_minimal_rehabilitation": "WIP_FUNCTIONALLY_CLOSED_EXACT_HEAD_PENDING",
+    "p9_full_system_match_diagnostic": "WIP_PASS_EXACT_HEAD_PENDING",
+    "reference_product": "SINGLE_MATCH_POSTMATCH_V0_1"
+  },
+  "current_development_frontier": {
+    "draft": true,
+    "local_wip_base_head": "3d2b67c0eef8401432d79508bfde3108d569ff4c",
+    "local_wip_branch_state": "DETACHED",
+    "local_wip_changed_path_count": 22,
+    "local_wip_commits_ahead_of_remote_head": 9,
+    "local_wip_dirty": true,
+    "merged": false,
+    "pr": 364,
+    "pr_state": "OPEN",
+    "remote_branch": "repair/post-sequence-current-ledger-v1",
+    "remote_head": "9a034aac761c51060f231fe2c214acd8adac81bc",
+    "role": "CURRENT_LOCAL_WIP_NOT_RELEASE_AUTHORITY"
+  },
+  "current_exact_head_physical_state": {
+    "comparable_counterevidence_candidates": 76,
+    "engineering_errors": 0,
+    "engineering_failures": 0,
+    "engineering_tests": 2256,
+    "exact_head": "3d2b67c0eef8401432d79508bfde3108d569ff4c",
+    "hard_blocks": [
+      "POST_SEQUENCE_SAFE_FINDING_ADMISSION_NOT_BOUND_CURRENT_RUN",
+      "FULL_SYSTEM_DIAGNOSTIC_HARNESS_RUNTIME_AUTHORITY_BINDING_MISMATCH"
+    ],
+    "physical_acceptance_result": "REVIEW_REQUIRED_NOT_ACCEPTED_CURRENT_HEAD",
+    "safe_finding_distribution": {
+      "ABSTAIN": 0,
+      "DOWNGRADE": 0,
+      "EMIT": 0,
+      "NOT_EVALUATED": 79
+    },
+    "safe_finding_handoff_candidates": 79,
+    "split_full_spine_status": "REVIEW_REQUIRED"
+  },
+  "current_truth_resolution": {
+    "active_match_truth": "READ_RUNTIME_ACTIVE_SINGLE_MATCH_CURRENT",
+    "development_frontier": "QUERY_GITHUB_PR_AND_FRESH_LOCAL_WIP",
+    "manual_current_sha_allowed": false,
+    "open_pr_issue_review_state": "QUERY_GITHUB_CURRENT_STATE",
+    "physical_acceptance_truth": "READ_APPEND_ONLY_PHYSICAL_ACCEPTANCE_REGISTRY_AND_MATCH_EXACT_HEAD",
+    "product_head": "QUERY_GITHUB_MAIN",
+    "stale_snapshot_must_not_override_live_authority": true
+  },
+  "current_wip_rehabilitation_evidence": {
+    "analyst_output_contract_count": 79,
+    "classification": "WIP_VALIDATED_NOT_EXACT_HEAD_ACCEPTANCE",
+    "comparable_counterevidence_candidate_count": 68,
+    "diagnostic_accounting": {
+      "claim_evaluation_state": "EVALUATED_WITH_SAFE_FINDING",
+      "machine_vs_human_intelligence_chain_count": "PASS",
+      "safe_finding_current_run_accounting": "PASS",
+      "safe_finding_evaluation_state": "EXECUTED",
+      "variant_feature_challenge_current_invocation_accounting": "PASS"
+    },
+    "exact_head_authority": false,
+    "full_repo_regression": {
+      "errors": 0,
+      "failures": 0,
+      "product_core_status": "PASS",
+      "skipped": 0,
+      "tests": 2263,
+      "whole_tree_status": "PASS"
+    },
+    "full_system_match_diagnostic_state": "REVIEW_REQUIRED",
+    "post_sequence_admission_finalized": true,
+    "post_sequence_admission_status": "PASS",
+    "primary_common_blocker": "DEPENDENCY_UNRESOLVED",
+    "safe_finding_decision_count": 79,
+    "safe_finding_distribution": {
+      "ABSTAIN": 0,
+      "DOWNGRADE": 79,
+      "EMIT": 0
+    }
+  },
+  "donor_rule": "ADAPT_NOT_COPY",
+  "observed_at": "2026-10-02T15:15:38+03:00",
+  "product_main": {
+    "branch": "main",
+    "current_head_rule": "RESOLVE_FROM_GITHUB_MAIN_AT_READ_TIME",
+    "observed_head": "7648b16ea8885664cc2c4401fcfb6a961c711ec8",
+    "observed_via": "FRESH_GITHUB",
+    "role": "PRODUCT_MAIN",
+    "static_head_is_current_truth": false
+  },
+  "product_repository": "Hikmetpinarbas/hpfa",
+  "record": "HPFA_CURRENT_AUTHORITY_REGISTRY_V1",
+  "record_date": "2026-10-02",
+  "status": "CURRENT_AUTHORITY_REGISTRY_LIVING_OBSERVED_STATE"
 }

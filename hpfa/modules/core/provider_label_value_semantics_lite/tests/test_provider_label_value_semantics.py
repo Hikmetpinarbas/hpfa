@@ -154,12 +154,16 @@ def test_meta_variants_are_excluded_from_action_family() -> None:
         assert result["action_family_candidate"] is None
 
 
-def test_goalkeeper_goal_kick_length_is_restart_anchor() -> None:
-    result = classify("Goal kicks long (40+ m)", "GOALKEEPER_SURFACE_CANDIDATE")
+@pytest.mark.parametrize(
+    ("label", "distance"),
+    [("Goal kicks long (40+ m)", "LONG"), ("Goal kicks short (0-10 m.)", "SHORT")],
+)
+def test_goalkeeper_goal_kick_length_is_restart_anchor(label: str, distance: str) -> None:
+    result = classify(label, "GOALKEEPER_SURFACE_CANDIDATE")
     assert result["semantic_role_candidate"] == "ACTION_ANCHOR"
     assert result["action_family_candidate"] == "RESTART"
     assert result["restart_type_candidate"] == "GOAL_KICK"
-    assert result["distance_candidate"] == "LONG"
+    assert result["distance_candidate"] == distance
     assert result["downstream_eligibility"] == "ACTION_CANDIDATE_ELIGIBLE"
 
 
@@ -167,6 +171,7 @@ def test_goalkeeper_goal_kick_length_is_restart_anchor() -> None:
     ("label", "distance"),
     [
         ("Goal kicks short (0-15 m)", "SHORT"),
+        ("Goal kicks short (0-10 m.)", "SHORT"),
         ("Goal kicks medium (15-40 m)", "MEDIUM"),
         ("Goal kicks long (40+ m)", "LONG"),
     ],

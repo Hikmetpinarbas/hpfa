@@ -106,7 +106,14 @@ def test_metric_governance_construct_gate_resets_state_for_each_run(monkeypatch)
 
     second = full_spine.run_sidecars()
     assert "construct_path_blocked" not in second
-    assert full_spine.build_composite_packet({"id": "second"}) == {
-        "status": "PASS",
-        "candidate": {"id": "second"},
-    }
+    second_packet = full_spine.build_composite_packet({"id": "second"})
+    assert second_packet["status"] == "PASS"
+    assert second_packet["candidate"] == {"id": "second"}
+    admission = second_packet["metric_governance_admission"]
+    assert admission["status"] == "NOT_APPLICABLE"
+    assert admission["admitted"] is True
+    assert admission["reason"] == "no_xlsx_aggregate_input"
+    assert admission["same_provider_multiformat_is_independent_support"] is False
+    assert admission["aggregate_equivalence_truth"] is False
+    assert admission["construct_truth"] is False
+    assert admission["production_release"] is False

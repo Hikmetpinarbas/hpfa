@@ -6,7 +6,14 @@ Produce a project logbook entry in Turkish.
 
 HPFA = Hikmet Pınarbaş Football Analytics.
 
-HPFA is an event-only, claim-safe, modular and portable Football Intelligence Platform.
+HPFA is a claim-safe, modular and portable Football Intelligence Platform operating on **Zenginleştirilmiş Futbol Gözlem Verisi (ZFGV)**.
+
+Canonical ontology:
+
+- `EVENT ⊂ ZFGV`
+- event is one observation family, not the whole observation universe
+- construct admission is capability-specific
+- legacy `event_only_compatible` metadata cannot be product admission authority
 
 Your job is to maintain product continuity, not only summarize the conversation.
 
@@ -49,7 +56,21 @@ State clearly:
 
 Mandatory rule:
 
-Only runtime/active_single_match/current can be runtime match truth.
+Only `runtime/active_single_match/current` can be runtime match truth.
+
+## Observation / Capability Authority
+
+When a session changes admission or eligibility, record:
+
+- observation family/layer
+- required observation capabilities
+- admitted capabilities
+- optional capabilities
+- `forbidden_without` prerequisites
+- claim ceiling
+- whether the construct is ACTION/EVENT-specific or uses another ZFGV family
+
+Do not use a global Event-Only compatibility flag as a product-wide veto.
 
 ## Engineering Evidence
 
@@ -99,17 +120,21 @@ List:
 
 Mandatory guardrails:
 
-Do not emit:
+Do not emit without the required admitted evidence:
 
 - dominance truth
 - coach intention
-- off-ball structure
-- pitch control
-- body orientation
-- fatigue truth
+- off-ball structure truth
+- pitch control truth
+- body orientation / scanning truth
+- fatigue / physical-load truth
 - tactical plan truth
-- canonical event count before Canonical Event Lite
-- clean phase truth before claim gate
+- true team shape / compactness / defensive-line height
+- canonical event count or true action count
+- clean phase truth before the relevant claim/admission gate
+- causality from recurrence, provider labels or model output alone
+
+Coordinates are not tracking. Aggregate/tabular observations do not create action identity. Absence is not counterevidence.
 
 ## Product Status
 
@@ -136,18 +161,13 @@ For each file write:
 - file path
 - role
 - status
+- authority class
 - runtime authority: yes/no
 - product code: yes/no
+- current consumer if known
 - GitHub productization needed: yes/no
 
-Example:
-
-File: hpfa_event_only_rhythm_evidence_stack_v12.md
-Role: rhythm apparatus spec
-Status: SPEC_CORRECTION_ACCEPTED
-Runtime authority: no
-Product code: no
-GitHub productization needed: yes, later
+Historical or legacy filenames containing `event_only` may be recorded unchanged for lineage. Their name alone does not make them current Event-Only product authority.
 
 ## Open Items
 
@@ -169,6 +189,10 @@ Ideas not ready for productization.
 
 Branches, PRs, files or modules not yet in main.
 
+### Unknown authority / consumer gaps
+
+Items whose current consumer, runtime binding or authority cannot yet be proven. Do not resolve them by assumption.
+
 ## Next Correct Step
 
 Give exactly one next step.
@@ -177,13 +201,9 @@ It must be executable and ordered.
 
 Do not list ten alternatives.
 
-Examples:
+Use the sequence:
 
-Create Product Governance Runtime Pack V1 files in Termux, then prepare them for hpfa product repo intake.
-
-or:
-
-Write ACTIVE_MATCH Analyst Report Lite V1 contract before coding the module.
+`UNKNOWN → SEARCH EXISTING EVIDENCE → FRESH VERIFY IF CURRENT CLAIM → ACT`
 
 ## Handoff Block
 
@@ -191,12 +211,14 @@ End with a compact handoff block that can be pasted into a new ChatGPT session.
 
 Include:
 
-- current repo state
-- current Termux artifacts
-- current product priority
+- current repo/development state, freshly verified if claimed current
+- last exact physical ACTIVE_MATCH head separately
+- current product priority/WIP
 - source authority rule
+- observation/capability admission rule
 - active blockers
-- next command
+- next safe action
+- merge/release state
 
 ## Output Rules
 
@@ -208,14 +230,23 @@ Do not claim background work.
 
 Do not claim GitHub write unless a GitHub write actually happened.
 
-Do not claim ACTIVE_MATCH validation unless ACTIVE_MATCH execution actually happened.
+Do not claim ACTIVE_MATCH validation unless ACTIVE_MATCH execution actually happened for that exact implementation head.
 
 Do not call visible rows canonical events.
+
+Do not convert event-specific behavior into a product-wide Event-Only ontology.
 
 Always distinguish:
 
 - engineering evidence
 - analyst evidence
 - source authority
+- observation capability/admission
 - claim boundary
 - release status
+
+Default locks unless fresh evidence proves otherwise:
+
+- `canonical_event_count=UNKNOWN`
+- `true_action_count=UNKNOWN`
+- `production_release=false`

@@ -46,11 +46,41 @@ CONTEXTUALIZES
 ABSTAINS
 ```
 
-## Contradiction rule
+## Comparison admission and counterevidence rule
 
-`CONTRADICTS` is reserved for explicit same-construct or same-window conflict with a declared contradiction basis.
+A declared `CONTRADICTS` relation is **intent only**. It is not counterevidence until the comparison is admitted.
 
-Generic terminal limitation signals such as low shot volume, low box entry, weak terminal action volume or high loss cost should not become contradiction by default. They are `QUALIFIES` unless the upstream packet explicitly declares contradiction basis.
+Counterevidence admission requires explicit machine-readable comparison metadata:
+
+```text
+comparison_question_id
+comparison_unit
+exact_dimensions
+test_dimensions
+reference_context
+candidate_context
+reference_outcome
+candidate_outcome
+outcome_relation
+```
+
+Rules:
+
+- matching dimensions may not contain the tested outcome dimension or any forbidden leakage dimension;
+- unresolved exact-context dimensions remain `CONTEXT_UNRESOLVED`;
+- exact-context mismatch remains `CONTEXT_MISMATCH`;
+- unresolved outcomes remain `UNRESOLVED`;
+- `outcome_relation` must be one of `OPPOSITE | SAME | INCOMPARABLE | UNRESOLVED`;
+- `SAME` is `NON_SUPPORT`, not support and not counterevidence;
+- same provenance/dependency/independence lineage becomes `DEPENDENCY_CHALLENGE`;
+- missing dependency lineage or unadmitted independence remains `UNRESOLVED`;
+- only comparable, opposite, dependency-separated outcomes with explicit admitted independence become `COUNTEREVIDENCE` and may emit relation type `CONTRADICTS`.
+
+Legacy or incomplete contradiction declarations remain visible as `QUALIFIES` with `comparison_status=NOT_EVALUATED` and `counterevidence_class=UNRESOLVED`.
+
+Generic terminal limitation signals such as low shot volume, low box entry, weak terminal action volume or high loss cost remain qualifiers unless a complete comparison contract admits them as counterevidence.
+
+Absence never becomes counterevidence.
 
 ## Upstream identity rule
 
@@ -105,6 +135,12 @@ fusion relation record
 support relation count
 qualifier relation count
 contradiction relation count
+comparison admission status counts
+typed counterevidence class counts
+admitted counterevidence count
+dependency challenge count
+non-support count
+unresolved counterevidence count
 contextualization relation count
 dependency / independence state preservation
 fusion status candidate
@@ -164,7 +200,13 @@ test_missing_packet_id_blocks_fusion_identity
 test_fusion_records_signal_sources
 test_fusion_detects_support_relation
 test_low_shot_volume_qualifies_not_contradicts_by_default
-test_explicit_contradiction_requires_basis
+test_declared_contradiction_without_comparison_contract_downgrades_to_qualifier
+test_comparable_opposite_dependency_separated_outcome_is_counterevidence
+test_missing_outcome_remains_unresolved
+test_same_dependency_is_dependency_challenge_not_counterevidence
+test_exact_context_mismatch_is_not_counterevidence
+test_outcome_leakage_invalidates_comparison_contract
+test_same_outcome_is_non_support_not_support
 test_fusion_does_not_emit_claim_text
 test_fusion_preserves_candidate_only_claim_ceiling
 test_causal_truth_upstream_output_blocks_fusion

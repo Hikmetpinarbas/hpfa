@@ -2,12 +2,37 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 from pathlib import Path
 
 import action_bundle_multi_family_review_taxonomy_current_v1 as current_taxonomy
 from hpfa.modules.core.cross_role_relation_candidate_resolver_lite.src import (
     cross_role_relation_candidate_resolver as resolver,
 )
+from hpfa.modules.core.cross_role_relation_candidate_resolver_lite.src.dependency_topology import (
+    classify_cross_role_dependency,
+)
+
+
+def _bind_dependency_topology(payload: dict) -> dict:
+    typed = []
+    for relation in payload.get("resolved_relation_candidates") or []:
+        record = classify_cross_role_dependency(relation.get("source_roles") or [])
+        relation.update({
+            "dependency_type": record["dependency_type"],
+            "dependency_rationale": record["dependency_rationale"],
+            "independent_support_allowed": False,
+            "dependency_claim_ceiling": record["claim_ceiling"],
+        })
+        typed.append(record["dependency_type"])
+
+    payload["dependency_type_counts"] = dict(sorted(Counter(typed).items()))
+    payload["typed_dependency_candidate_count"] = len(typed)
+    payload["typed_dependency_independent_support_allowed"] = False
+    payload["typed_dependency_event_identity_truth"] = False
+    payload["typed_dependency_occurrence_identity_truth"] = False
+    payload["typed_dependency_claim_ceiling"] = "DEPENDENCY_DESCRIPTION_ONLY"
+    return payload
 
 
 def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
@@ -35,6 +60,12 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
             "relation_classification_counts": {},
             "relation_role_pair_counts": {},
             "relation_family_counts": {},
+            "dependency_type_counts": {},
+            "typed_dependency_candidate_count": 0,
+            "typed_dependency_independent_support_allowed": False,
+            "typed_dependency_event_identity_truth": False,
+            "typed_dependency_occurrence_identity_truth": False,
+            "typed_dependency_claim_ceiling": "DEPENDENCY_DESCRIPTION_ONLY",
             "hard_block_hits": ["current_multi_family_taxonomy_fail_closed_or_semantic_output_missing"],
             "review_hits": [],
             "same_time_only_link_allowed": False,
@@ -65,6 +96,7 @@ def runtime_write_outputs(input_dir: str | Path, out_dir: str | Path) -> dict:
         semantic_payload,
         taxonomy_payload,
     )
+    payload = _bind_dependency_topology(payload)
     payload["current_taxonomy_status"] = taxonomy_payload.get("status")
     payload["current_semantic_status"] = taxonomy_payload.get("current_semantic_status")
     payload["current_content_source_role_bridge_status"] = taxonomy_payload.get(
@@ -96,6 +128,8 @@ def main() -> int:
         "review_required_relation_count": payload.get("review_required_relation_count"),
         "double_count_suppression_candidate_count": payload.get("double_count_suppression_candidate_count"),
         "relation_classification_counts": payload.get("relation_classification_counts") or {},
+        "dependency_type_counts": payload.get("dependency_type_counts") or {},
+        "typed_dependency_candidate_count": payload.get("typed_dependency_candidate_count", 0),
         "hard_block_hits": payload.get("hard_block_hits") or [],
         "review_hits": payload.get("review_hits") or [],
         "canonical_event_count": "UNKNOWN",

@@ -46,3 +46,14 @@ External glossary/convention material can remain `REFERENCE_ONLY_REVIEWED_DEFINI
 - no production release
 
 Expected current state is structurally valid but `REVIEW_REQUIRED` until provider identity/version and provider definitions are actually admitted.
+
+## Historical raw-label vocabulary
+Historical XLSX label inventories may be retained only as REFERENCE_ONLY raw
+vocabulary inside this owner. A raw label does not create metric identity,
+provider identity, phase truth, tactical/physical dimensions, comparison
+permission or metric-value authority. Historical family names are hints only.
+
+The current vocabulary registry is
+hpfa/modules/core/provider_metric_dictionary_lite/registry/provider_raw_label_vocabulary_candidates_v1.json.
+It intentionally strips the legacy inbox phase/dimension mappings while preserving
+the raw label strings and provenance hash for later reviewed mapping.

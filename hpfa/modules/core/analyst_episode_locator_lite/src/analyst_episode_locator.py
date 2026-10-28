@@ -535,6 +535,28 @@ def build_episode_locator(
             "analyst_review_priority_candidate": priority,
             "action_volume_basis": ACTION_VOLUME_BASIS,
             "support_rows_add_action_volume": False,
+            "analyst_vocabulary_crosswalk": {
+                "primary_analyst_term": "VISIBLE_EVENT_SEQUENCE_WINDOW_CANDIDATE",
+                "sequence_mapping_state": (
+                    "APPROXIMATION_AVAILABLE"
+                    if len(eligible_refs) > 0
+                    else "NOT_MAPPED_NO_ELIGIBLE_ACTION"
+                ),
+                "sequence_mapping_basis": "ADMITTED_VISIBLE_ACTIONS_WITH_EXPLICIT_TEMPORAL_BOUNDARIES",
+                "sequence_mapping_is_sequence_truth": False,
+                "possession_mapping_state": "UNAVAILABLE_CURRENT_OBSERVATION_SCOPE",
+                "possession_mapping_is_possession_truth": False,
+                "phase_mapping_state": "CONTEXT_ONLY_NOT_PHASE_MAPPING",
+                "phase_mapping_is_phase_truth": False,
+                "boundary_start_reason": temp["start_reason"],
+                "boundary_end_reason": end_reason,
+                "same_time_order_uncertainty_present": any(
+                    layer.get("same_time_unordered") for layer in layers
+                ),
+                "source_row_order_can_define_sequence_order": False,
+                "tracking_or_video_required_for_this_crosswalk": False,
+                "claim_ceiling": "MATCH_LOCAL_VISIBLE_EVENT_SEQUENCE_WINDOW_APPROXIMATION_ONLY",
+            },
             "episode_is_possession_truth": False,
             "episode_is_sequence_truth": False,
             "episode_is_phase_truth": False,
@@ -774,6 +796,7 @@ def _analyst_text(report: dict[str, Any]) -> str:
     lines.extend([
         "",
         "Safe meaning: episode boundaries are analyst navigation candidates.",
+        "Analyst vocabulary bridge: each admitted episode can be read as a visible event-sequence window candidate; its boundary basis remains visible. possession or tactical-phase truth requires separate admitted evidence and stays outside this mapping.",
         "Administrative boundaries sharing the exact admitted timestamp with a visible layer do not create invented before/after order. The colliding visible layer is isolated for review so surrounding episodes cannot cross the hard match boundary.",
         "Only reviewed action-occurrence-eligible evidence contributes to action-family volume and review priority.",
         "Context/reference/participation rows remain visible support but add no action volume.",
